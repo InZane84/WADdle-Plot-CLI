@@ -16,3 +16,4 @@ executable.
 example of usage.
 
 
+![plot](https://github.com/InZane84/waddle_plot/blob/master/waddle_plot.gif)

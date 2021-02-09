@@ -9,6 +9,8 @@ import turtle
 import sys
 import argparse
 
+# TODO: convert to Py3
+
 __author__ = 'Daniel Carroll'
 __email__ = 'dzcarroll@outlook.com'
 

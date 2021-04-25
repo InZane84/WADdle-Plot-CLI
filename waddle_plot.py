@@ -9,6 +9,10 @@ import turtle
 import sys
 import argparse
 
+#Python 3 madness...
+from planar.line import LineSegment
+from turtle import *
+
 # TODO: convert to Py3
 
 __author__ = 'InZane84'
@@ -266,7 +270,7 @@ class Wad:
 		for line in level.lines.lines:
 			start_point = level.vertex_vectors[line['start_point']]
 			end_point = level.vertex_vectors[line['end_point']]
-			#line['line-segment'] = planar.LineSegment.from_points((start_point, end_point))
+			line['line-segment'] = LineSegment.from_points((start_point, end_point))
 		"""for line in level.lines.lines:
 			line['FRONT_SIDEDEF'] = level.sides[line['frontside_num']]
 			line['BACK_SIDEDEF'] = level.sides[line['backside_num']]"""
@@ -291,17 +295,20 @@ class Plotter:
 		self.win = turtle.Turtle()
 		self.win.pencolor(self.ONE_SIDED_COLOR)
 		self.win.screen.bgcolor(self.BACKGROUND_COLOR)
-		self.win.tracer(0,0)
+		self.win.tracer = tracer
+		
+		
 		
 		self.scale = planar.Affine.scale((.175))
 		self.bbox = planar.BoundingBox.from_points(self.level.vertex_vectors)
 		self.offset = planar.Affine.translation((-self.bbox.center))
 		
-		self.tracer = tracer
+		#For some fucked up reason tracer is changed?
+		"""self.tracer = tracer
 		if self.tracer is False:
 			self.win.tracer(0)
 		else:
-			self.win.tracer(1)
+			self.win.tracer(1)"""
 			
 	def plot(self, color=None):
 		self.win.clear()

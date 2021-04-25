@@ -1,8 +1,6 @@
 # WADdle-Plot-CLI
 Command Line Version
 
-<b>NOTE:</b> waddle_plot.py is CURRENTLY BROKEN untill I figure out what's going
-on with the modules system with Python 3....
 
 This tool draws DOOM levels within wadfiles 
 using Python's Turtle module. It's a WIP but as

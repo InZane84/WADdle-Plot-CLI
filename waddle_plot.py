@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-	WADdle Plot v0.5 - DOOM wadfile map plotter.
+	WADdle Plot v0.8 - DOOM wadfile map plotter.
 """
 from struct import unpack
 import planar
@@ -11,15 +11,14 @@ import argparse
 
 # TODO: convert to Py3
 
-__author__ = 'Daniel Carroll'
-__email__ = 'dzcarroll@outlook.com'
+__author__ = 'InZane84'
+__email__ = 'InZaneGamer84@protonmail.com'
 
 class LumpInfo:
 	def __init__(self ,offset, size):
 		"""Entry in the WAD's directory. Table starts at
-			wad.header['diroffset']
 		"""
-		self.offset = offset
+		self.offset = offset # Start of the Lump Info Entries (Directory)
 		self.size = size
 
 
@@ -116,9 +115,14 @@ class SideDefs:
 			side_dict = dict()
 			side_dict['x'] = side[0]
 			side_dict['y'] = side[1]
-			side_dict['UPPER'] = side[2].strip("\x00")
-			side_dict['LOWER'] = side[3].strip("\x00")
-			side_dict['MIDDLE'] = side[4].strip("\x00")
+			side_dict['UPPER'] = side[2].strip(b"\x00")
+			side_dict['LOWER'] = side[3].strip(b"\x00")
+			side_dict['MIDDLE'] = side[4].strip(b"\x00")
+			# decode...
+			#side_dict["UPPER"] = side_dict["UPPER"].decode(encoding="utf-8")
+			#side_dict["LOWER"] = side_dict["LOWER"].decode("utf")
+			#side_dict["MIDDLE"] = side_dict["MIDDLE"].decode("utf")
+
 			side_dict['SECTOR'] = side[5]
 			self.sides.append(side_dict)
 			i += 1
@@ -184,13 +188,15 @@ class Wad:
 			info_unpacked = unpack("<ll8s", info_packed)
 			info['lumpofs'] = info_unpacked[0]
 			info['lumpsize'] = info_unpacked[1]
-			info['lumpname'] = info_unpacked[2].strip('\x00')
+			info['lumpname'] = info_unpacked[2].strip(b'\x00')
+			# decode...
+			info['lumpname'] = info['lumpname'].decode("utf")
 			lumpentry_num += 1
 			if info['lumpname'] == lump:
 				return info
 				
-		if info['lumpname'] != lump:
-			print 'Wadfile contains no such lump: ' + str(lump)
+		if info['lumpname'] != bytes("lump", "utf8"):
+			print('Wadfile contains no such lump: ' + str(lump))
 
 	def load_level_info(self, level):
 		"Loads the info entries of the level data"""
@@ -212,7 +218,9 @@ class Wad:
 			info_unpacked = unpack("<ll8s", info_packed)
 			info['lumpofs'] = info_unpacked[0]
 			info['lumpsize'] = info_unpacked[1]
-			info['lumpname'] = info_unpacked[2].strip('\x00')
+			info['lumpname'] = info_unpacked[2].strip(b'\x00')
+			#decode...
+			info['lumpname'] = info['lumpname'].decode("utf")
 			# TODO: Equality test is not working!!!!
 			i += 1
 			if info['lumpname'] == mapname:
@@ -227,7 +235,9 @@ class Wad:
 					info_unpacked = unpack("<ll8s", info_packed)
 					info['lumpofs'] = info_unpacked[0]
 					info['lumpsize'] = info_unpacked[1]
-					info['lumpname'] = info_unpacked[2].strip('\x00')
+					info['lumpname'] = info_unpacked[2].strip(b'\x00')
+					# decode...
+					info['lumpname'] = info['lumpname'].decode("utf")
 					map_entries_index += 1
 					i += 1
 					self.maptable[mapname + '_' + info['lumpname']] = LumpInfo(info['lumpofs'], info['lumpsize'])
@@ -256,7 +266,7 @@ class Wad:
 		for line in level.lines.lines:
 			start_point = level.vertex_vectors[line['start_point']]
 			end_point = level.vertex_vectors[line['end_point']]
-			line['line-segment'] = planar.LineSegment.from_points((start_point, end_point))
+			#line['line-segment'] = planar.LineSegment.from_points((start_point, end_point))
 		"""for line in level.lines.lines:
 			line['FRONT_SIDEDEF'] = level.sides[line['frontside_num']]
 			line['BACK_SIDEDEF'] = level.sides[line['backside_num']]"""
@@ -339,13 +349,13 @@ if __name__ == '__main__':
 	cmd_args = main()
 	wadfile = open(cmd_args.wadfile, 'rb')
 	wad = Wad(wadfile)
-	print 'Loaded wadfile: ' + cmd_args.wadfile
+	print('Loaded wadfile: ' + cmd_args.wadfile)
 	
 	args = vars(cmd_args)
-	print args
+	print(args)
 	
 	if args['level'] == None:
-		print 'No level specified!'
+		print('No level specified!')
 	else:
 		wad.load_level_info(args['level'])
 		wad.level = wad.build_level(args['level'])
@@ -373,11 +383,11 @@ if __name__ == '__main__':
 			plotter.TWO_SIDED_COLOR = args['two_sided_color']
 		
 		plotter.win.screen.title('WADdle Plot v0.5 ' + wad.wadfile.name + ' ' + plotter.level_name)
-		print 'Plotting ' + args['level'] + ' from ' + args['wadfile']
+		print('Plotting ' + args['level'] + ' from ' + args['wadfile'])
 		if args['one_sided_color'] and args['two_sided_color'] != None:
 			colors = (args['one_sided_color'], args['two_sided_color'])
 			plotter.plot(color=colors)
 		else:
 			plotter.plot()
-		print 'Press ENTER to quit!'
-		quit_app = raw_input()
+		print('Press ENTER to quit!')
+		quit_app = input()

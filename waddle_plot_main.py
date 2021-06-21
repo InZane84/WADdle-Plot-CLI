@@ -51,7 +51,7 @@ class MapViewer(tk.Frame):
         # DEBUGGING ==========================================================
         # self.debug_points = self.getPoints("vectors.bin")
         # self.canvas.create_line()
-        # self._points_toFile("vectors.bin")
+
         # ===================================================================
         # ============================|
         # These two are set...      # |
@@ -88,6 +88,9 @@ class MapViewer(tk.Frame):
             self.map_ptr = self.doom_maps[0] + 1
         else:
             self.map_ptr = self.doom2_maps[0] + 1"""
+
+        #self._points_toFile(all_levels="wos_levels.bin")
+
         # ======================================
 
         self.map_x_max = None
@@ -126,10 +129,10 @@ class MapViewer(tk.Frame):
         self.plot()
         #Update the combo box to reflect the level change
         self.selected_map_box.current(newindex=self.map_ptr)
-
+        print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
         print("\nprev_map: Current map is: {}".format(self.level.map))
         print("prev_map: Map pointer is @ {}".format(self.map_ptr))
-        print("++++++++++++++++++++++++++++++++++++++++++++++++++")
+        print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 
     def next_map(self):
         self.level = None
@@ -138,9 +141,10 @@ class MapViewer(tk.Frame):
         self.plot()
         # Update the combo box to reflect the change
         self.selected_map_box.current(newindex=self.map_ptr)
-
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         print("\nnext_map: Current map is: {}".format(self.level.map))
         print("next_map: Map pointer is @ {}".format(self.map_ptr))
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 
     def draw_map(self):
         """Draws the currently loaded level"""
@@ -175,7 +179,7 @@ class MapViewer(tk.Frame):
 
         return points
 
-    def _points_toFile(self, points_file: str):
+    def _points_toFile(self, p_file=False, all_levels=False):
         """"
         Write points data to a FILE. This should NOT be called apart
         from __init__, due to the assumption that the level data has already
@@ -184,22 +188,56 @@ class MapViewer(tk.Frame):
         PARAM: points_file = Name of written file
         """
 
-        out_file = open(points_file, 'wb')
+        # Write a single level
+        if p_file:
+            out_file = open(p_file, 'wb')
 
-        xPoints = []
-        yPoints = []
-        for linedef in self.level.lines.lines:
-            xPoints.append(linedef['line-segment'].start.x)
-            yPoints.append(linedef['line-segment'].start.y)
-            xPoints.append(linedef['line-segment'].end.x)
-            yPoints.append(linedef['line-segment'].end.y)
+            xPoints = []
+            yPoints = []
+            for linedef in self.level.lines.lines:
+                xPoints.append(linedef['line-segment'].start.x)
+                yPoints.append(linedef['line-segment'].start.y)
+                xPoints.append(linedef['line-segment'].end.x)
+                yPoints.append(linedef['line-segment'].end.y)
 
-        points = []
-        for x, y in zip(xPoints, yPoints):
-            points.append((x, y))
+            points = []
+            for x, y in zip(xPoints, yPoints):
+                points.append((x, y))
 
-        pickle.dump(points, out_file)
-        out_file.close()
+            pickle.dump(points, out_file)
+            out_file.close()
+
+        # Write all levels within the loaded wadfile
+        # File size is 1/2 of wadfile. Not even worth it...
+        if all_levels:
+            out_file = open(all_levels, 'wb')
+            m_ptr = self.map_ptr
+            print("m_ptr is {}".format(m_ptr))
+            loaded_level = None
+
+            xPoints = []
+            yPoints = []
+
+            print("Writing all level-points to {}".format(all_levels))
+            i= 0
+            while i < len(self.doom2_maps):
+                loaded_level = self.level
+                print("Writing points for {} to {}".format(self.level.map, all_levels))
+
+                for line in loaded_level.lines.lines:
+                    xPoints.append(line['line-segment'].start.x)
+                    yPoints.append(line['line-segment'].start.y)
+                    xPoints.append(line['line-segment'].end.x)
+                    xPoints.append(line['line-segment'].end.y)
+
+                points = []
+                for x, y in zip(xPoints, yPoints):
+                    points.append((x, y))
+                pickle.dump(points, out_file)
+                i += 1
+
+            out_file.close()
+
 
     def loadWad(self, wadfile: str):
         """

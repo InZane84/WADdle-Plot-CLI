@@ -1,20 +1,9 @@
-# WADdle-Plot-CLI
-Command Line Version
+# WADdle Plot
+## A DOOM wadfile parser/map plotter
 
+WADdle plot displays levels from within DOOM wadfiles. It's currently under heavy construction...
 
-This tool draws DOOM levels within wadfiles 
-using Python's Turtle module. It's a WIP but as
-it stands, it's neat.
-
-It supports changing the line colors and is
-animated.
-
-This release is targeted for Windows and was 
-"frozen" using pyinstaller to create the 
-executable.
-
-"waddle_plot.exe doom.wad --level E1M6" as an
-example of usage.
-
-
-![plot](https://github.com/InZane84/waddle_plot/blob/master/waddle_plot.gif)
+<img src="https://github.com/InZane84/WADdle-Plot-CLI/blob/master/2021-06-21_07-31.png" width="480" height="270" />
+<img src="https://github.com/InZane84/waddle_plot/blob/master/waddle_plot.gif" width="480" height="270" />
+<img src="https://github.com/InZane84/WADdle-Plot-CLI/blob/master/3%20secs.png" width="480" height="270" />
+<img src="https://github.com/InZane84/WADdle-Plot-CLI/blob/master/looong.png" width="480" height="270" />

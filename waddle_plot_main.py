@@ -1,7 +1,11 @@
 import pickle
 import tkinter as tk
+from tkinter import ttk
+from tkinter.messagebox import showinfo
 import turtle
 from tkinter.constants import *
+import time
+import threading
 
 
 import planar
@@ -13,16 +17,9 @@ from pickle import dump, load
 class MapViewer(tk.Frame):
     def __init__(self, *args, **kwargs):
         tk.Frame.__init__(self, *args, **kwargs)
-        #root = tk.Tk()
         self.canvas = tk.Canvas(master=root, width=1285, height=725)
         self.canvas.pack(side="top", fill="both", expand=True)
-        self.canvas.configure(scrollregion=(-640, -360, 640, 360))
-        #self.canvas.create_rectangle(-10, -10, 10, 10, fill="red", outline="black")
-
-
-        #prevmap_btn = tk.Button(self, text="Previos MAP", command=pass)
-
-
+        #self.canvas.configure(scrollregion=(-640, -360, 640, 360))
         # turtle opts
         self.t_turtle = turtle.RawTurtle(self.canvas)
         self.screen = self.t_turtle.getscreen()
@@ -30,12 +27,26 @@ class MapViewer(tk.Frame):
         self.TWO_SIDED_COLOR = "RED"
         self.BACKGROUND_COLOR = "BLACK"
         self.screen.bgcolor(self.BACKGROUND_COLOR)
-        #self.screen.delay(1)
 
         nextmap_btn = tk.Button(self, text="Next MAP", command=self.next_map)
-        nextmap_btn.pack()
+        nextmap_btn.pack(side="left", padx=5, pady=5)
         prevmap_btn = tk.Button(self, text="Prev MAP", command=self.prev_map)
-        prevmap_btn.pack()
+        prevmap_btn.pack(side="left", padx=5, pady=5)
+
+        #Map Select Box Widget
+        map_select_label = ttk.Label(text="MAP:")
+        map_select_label.pack(side="left", padx=5, pady=5)
+
+        self.selected_map_var = tk.StringVar()
+        self.selected_map_box = ttk.Combobox(textvariable=self.selected_map_var)
+        self.selected_map_box.bind('<<ComboboxSelected>>', self.cb_change_map)
+
+        # Progress Bar (on draw)
+        self.progress_bar = ttk.Progressbar(orient=tk.HORIZONTAL, mode='determinate')
+        self.progress_bar.pack(side="right", padx=5, pady=5)
+
+
+
 
         # DEBUGGING ==========================================================
         # self.debug_points = self.getPoints("vectors.bin")
@@ -50,7 +61,7 @@ class MapViewer(tk.Frame):
         # here...                   # |
         self.game = "DOOM"
         self.loadWad("C:\Pydevel\WOS.wad")    # |
-        self.loadLevel("MAP03")      # |
+        self.loadLevel("MAP01")      # |
         # =============================
 
         # Need a better way than this...
@@ -62,7 +73,14 @@ class MapViewer(tk.Frame):
                            "MAP11", "MAP12", "MAP13", "MAP14", "MAP15", "MAP16", "MAP17", "MAP18", "MAP19", "MAP20",
                            "MAP21", "MAP22", "MAP23", "MAP24", "MAP25", "MAP26", "MAP27", "MAP28", "MAP29", "MAP30",
                            "MAP31", "MAP32"]
+
+        # Map selection combo box
+        self.selected_map_box['values'] = self.doom2_maps
+        self.selected_map_box['state'] = 'readonly'
+        self.selected_map_box.pack(side='left', padx=5, pady=5)
+
         # This tracks the current drawn level
+        # BUG: list index out of range when going past the end...
         self.map_ptr = self.doom2_maps.index(self.level.map)
         print("__init__: map pointer is :  {}".format(self.map_ptr))
 
@@ -78,21 +96,36 @@ class MapViewer(tk.Frame):
         self.map_y_min = None
 
         # This could be wrong
-        self.screen_x_max = -640
-        self.screen_x_min = 640
-        self.screen_y_max = -360
-        self.screen_y_min = 360
+        self.screen_x_max = -640 + 10
+        self.screen_x_min = 640 - 10
+        self.screen_y_max = -360 + 10
+        self.screen_y_min = 360 - 10
         # =======================
         #self.world_to_screen()
         self.plot()
 
         #print('hi')
 
+    def progress_begin(self):
+            time.sleep(5)
+            self.progress_bar.start()
+
+    def cb_change_map(self, evt):
+        """Changes to the selected level in the combo box"""
+        print("cb_change_map: Switching to and plotting level {}".format(self.selected_map_box.get()))
+        #showinfo(title="Map", message=msg)
+        self.level = None
+        self.loadLevel(self.doom2_maps[self.doom2_maps.index(self.selected_map_box.get())])
+        self.map_ptr = self.doom2_maps.index(self.level.map)
+        self.plot()
+
     def prev_map(self):
         self.level = None
         self.loadLevel(self.doom2_maps[self.map_ptr - 1])
         self.map_ptr = self.doom2_maps.index(self.level.map)
         self.plot()
+        #Update the combo box to reflect the level change
+        self.selected_map_box.current(newindex=self.map_ptr)
 
         print("\nprev_map: Current map is: {}".format(self.level.map))
         print("prev_map: Map pointer is @ {}".format(self.map_ptr))
@@ -103,6 +136,8 @@ class MapViewer(tk.Frame):
         self.loadLevel(self.doom2_maps[self.map_ptr + 1])
         self.map_ptr = self.doom2_maps.index(self.level.map)
         self.plot()
+        # Update the combo box to reflect the change
+        self.selected_map_box.current(newindex=self.map_ptr)
 
         print("\nnext_map: Current map is: {}".format(self.level.map))
         print("next_map: Map pointer is @ {}".format(self.map_ptr))
@@ -230,10 +265,13 @@ class MapViewer(tk.Frame):
     def plot(self):
         """ Plot the level"""
         self.t_turtle.reset()
-        self.screen.bgcolor(self.BACKGROUND_COLOR)
+        # Start the progress bar
+        #self.progress_bar.set_value(30)
+        #self.screen.bgcolor(self.BACKGROUND_COLOR)
         #self.screen.delay(1)
         self.screen.tracer(0)
         self.world_to_screen()
+
 
         for p in self.level.lines.lines:
             # self.canvas.create_line(p['line-segment'].start, p['line-segment'].end)
@@ -248,6 +286,10 @@ class MapViewer(tk.Frame):
             self.t_turtle.pendown()
             self.t_turtle.goto(p['line-segment'].end)
 
+            self.progress_bar.stop()
+
+
+
 
 
 
@@ -256,5 +298,6 @@ if __name__ == "__main__":
     root = tk.Tk()
     #MapViewer(root).pack(side="top", fill="both", expand=True)
     MapViewer().pack(side="top", fill="both", expand=True)
+    root.resizable(width=False, height=False)
     root.mainloop()
     #MapViewer().mainloop()

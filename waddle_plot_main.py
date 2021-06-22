@@ -8,6 +8,7 @@ import time
 import threading
 # TODO: Why do I need the following? What's going on with the namespace?
 from tkinter import Checkbutton
+from tkinter import IntVar
 
 import planar
 from planar import Vec2
@@ -36,13 +37,6 @@ class MapViewer(tk.Frame):
         nextmap_btn.pack(side="left", padx=5, pady=5)
         prevmap_btn = tk.Button(self, text="Prev MAP", command=self.prev_map)
         prevmap_btn.pack(side="left", padx=5, pady=5)
-
-        #self.anim_check_btn = Checkbutton(self, text="Animate", variable=self.isChecked, onvalue=1, offvalue=0)
-        #self.anim_check_btn = Checkbutton(self, text="Animate")
-        #self.anim_check_btn.pack(side="left", padx=5, pady=5)
-
-
-
         # Map Select Box Widget
         map_select_label = ttk.Label(text="MAP:")
         map_select_label.pack(side="left", padx=5, pady=5)
@@ -50,6 +44,15 @@ class MapViewer(tk.Frame):
         self.selected_map_var = tk.StringVar()
         self.selected_map_box = ttk.Combobox(textvariable=self.selected_map_var)
         self.selected_map_box.bind('<<ComboboxSelected>>', self.cb_change_map)
+
+
+        # var for Checkbutton state
+        self.cb = IntVar()
+
+        # Animate Checkbutton
+        self.anim_check_btn = Checkbutton(self, text="Animate", variable=self.cb, onvalue=1, offvalue=0, state=NORMAL, command=self.isChecked)
+        self.anim_check_btn.pack(side="left", padx=5, pady=5)
+
 
         # Progress Bar (on draw) - can't get working
         self.progress_bar = ttk.Progressbar(orient=tk.HORIZONTAL, mode='determinate')
@@ -103,14 +106,24 @@ class MapViewer(tk.Frame):
         self.screen_y_min = 360 - 10
         # =======================
         # self.world_to_screen()  <--- plot() calls this
-        self.plot()
+
         # Set initial value of the combo-box
         self.selected_map_box.current(newindex=self.map_ptr)
         #print('hi')
+        self.screen.tracer(0)
+        self.plot()
 
     def progress_begin(self):
             time.sleep(5)
             self.progress_bar.start()
+
+            # Checkbutton state func
+
+    def isChecked(self):
+        if self.cb.get() == 1:
+            self.screen.tracer(1)
+        if self.cb.get() == 0:
+            self.screen.tracer(0)
 
     def cb_change_map(self, evt):
         """Changes to the selected level in the combo box"""
@@ -128,10 +141,6 @@ class MapViewer(tk.Frame):
         self.plot()
         # Update the combo box to reflect the level change
         self.selected_map_box.current(newindex=self.map_ptr)
-        print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-        print("\nprev_map: Current map is: {}".format(self.level.map))
-        print("prev_map: Map pointer is @ {}".format(self.map_ptr))
-        print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 
     def next_map(self):
         self.level = None
@@ -142,10 +151,6 @@ class MapViewer(tk.Frame):
             self.plot()
             # Update...
             self.selected_map_box.current(newindex=self.map_ptr)
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-            print("\nnext_map: Current map is: {}".format(self.level.map))
-            print("next_map: Map Pointer is @ {}".format(self.map_ptr))
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
             return
 
         self.loadLevel(self.doom2_maps[self.map_ptr + 1])
@@ -153,10 +158,6 @@ class MapViewer(tk.Frame):
         self.plot()
         # Update the combo box to reflect the change
         self.selected_map_box.current(newindex=self.map_ptr)
-        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-        print("\nnext_map: Current map is: {}".format(self.level.map))
-        print("next_map: Map pointer is @ {}".format(self.map_ptr))
-        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 
     def draw_map(self):
         """Draws the currently loaded level"""
@@ -320,12 +321,12 @@ class MapViewer(tk.Frame):
         #self.screen.delay(1)
 
         # Check for animate check button - Fix me
-        """if self.is() == 1:
+        if self.cb == 1:
             self.screen.tracer(1)
-        else:
-            self.screen.tracer(0)"""
+        if self.cb == 0:
+            self.screen.tracer(0)
         self.world_to_screen()
-        self.screen.tracer(0)
+        #self.screen.tracer(0)
 
         for p in self.level.lines.lines:
             if -1 in p.values():

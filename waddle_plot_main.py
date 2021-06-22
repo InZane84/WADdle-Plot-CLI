@@ -1,12 +1,13 @@
 import pickle
 import tkinter as tk
-from tkinter import ttk
-from tkinter.messagebox import showinfo
+#from tkinter import ttk
+import tkinter.ttk as ttk
 import turtle
 from tkinter.constants import *
 import time
 import threading
-
+# TODO: Why do I need the following? What's going on with the namespace?
+from tkinter import Checkbutton
 
 import planar
 from planar import Vec2
@@ -14,12 +15,15 @@ from waddle_plot import Wad, LineDefs, SideDefs, Vertexes, Level
 from pickle import dump, load
 
 
+
+
 class MapViewer(tk.Frame):
     def __init__(self, *args, **kwargs):
         tk.Frame.__init__(self, *args, **kwargs)
+        # Canvas
         self.canvas = tk.Canvas(master=root, width=1285, height=725)
         self.canvas.pack(side="top", fill="both", expand=True)
-        #self.canvas.configure(scrollregion=(-640, -360, 640, 360))
+        # self.canvas.configure(scrollregion=(-640, -360, 640, 360))
         # turtle opts
         self.t_turtle = turtle.RawTurtle(self.canvas)
         self.screen = self.t_turtle.getscreen()
@@ -27,13 +31,19 @@ class MapViewer(tk.Frame):
         self.TWO_SIDED_COLOR = "RED"
         self.BACKGROUND_COLOR = "BLACK"
         self.screen.bgcolor(self.BACKGROUND_COLOR)
-
+        # buttons
         nextmap_btn = tk.Button(self, text="Next MAP", command=self.next_map)
         nextmap_btn.pack(side="left", padx=5, pady=5)
         prevmap_btn = tk.Button(self, text="Prev MAP", command=self.prev_map)
         prevmap_btn.pack(side="left", padx=5, pady=5)
 
-        #Map Select Box Widget
+        #self.anim_check_btn = Checkbutton(self, text="Animate", variable=self.isChecked, onvalue=1, offvalue=0)
+        #self.anim_check_btn = Checkbutton(self, text="Animate")
+        #self.anim_check_btn.pack(side="left", padx=5, pady=5)
+
+
+
+        # Map Select Box Widget
         map_select_label = ttk.Label(text="MAP:")
         map_select_label.pack(side="left", padx=5, pady=5)
 
@@ -41,17 +51,12 @@ class MapViewer(tk.Frame):
         self.selected_map_box = ttk.Combobox(textvariable=self.selected_map_var)
         self.selected_map_box.bind('<<ComboboxSelected>>', self.cb_change_map)
 
-        # Progress Bar (on draw)
+        # Progress Bar (on draw) - can't get working
         self.progress_bar = ttk.Progressbar(orient=tk.HORIZONTAL, mode='determinate')
         self.progress_bar.pack(side="right", padx=5, pady=5)
-
-
-
-
         # DEBUGGING ==========================================================
         # self.debug_points = self.getPoints("vectors.bin")
         # self.canvas.create_line()
-
         # ===================================================================
         # ============================|
         # These two are set...      # |
@@ -63,7 +68,6 @@ class MapViewer(tk.Frame):
         self.loadWad("C:\Pydevel\WOS.wad")    # |
         self.loadLevel("MAP01")      # |
         # =============================
-
         # Need a better way than this...
         self.doom_maps = ["E1M1", "E1M2", "E1M3", "E1M4", "E1M5", "E1M6", "E1M7", "E1M8", "E1M9",
                           "E2M1", "E2M2", "E2M3", "E2M4", "E2M5", "E2M6", "E2M7", "E2M8", "E2M9",
@@ -73,40 +77,35 @@ class MapViewer(tk.Frame):
                            "MAP11", "MAP12", "MAP13", "MAP14", "MAP15", "MAP16", "MAP17", "MAP18", "MAP19", "MAP20",
                            "MAP21", "MAP22", "MAP23", "MAP24", "MAP25", "MAP26", "MAP27", "MAP28", "MAP29", "MAP30",
                            "MAP31", "MAP32"]
-
         # Map selection combo box
         self.selected_map_box['values'] = self.doom2_maps
         self.selected_map_box['state'] = 'readonly'
         self.selected_map_box.pack(side='left', padx=5, pady=5)
-
         # This tracks the current drawn level
         # BUG: list index out of range when going past the end...
         self.map_ptr = self.doom2_maps.index(self.level.map)
-        print("__init__: map pointer is :  {}".format(self.map_ptr))
+        # print("__init__: map pointer is :  {}".format(self.map_ptr))
 
         """if self.game is "DOOM":
             self.map_ptr = self.doom_maps[0] + 1
         else:
             self.map_ptr = self.doom2_maps[0] + 1"""
-
-        #self._points_toFile(all_levels="wos_levels.bin")
-
+        # self._points_toFile(all_levels="wos_levels.bin") <-- fix this function
         # ======================================
-
         self.map_x_max = None
         self.map_x_min = None
         self.map_y_max = None
         self.map_y_min = None
-
         # This could be wrong
         self.screen_x_max = -640 + 10
         self.screen_x_min = 640 - 10
         self.screen_y_max = -360 + 10
         self.screen_y_min = 360 - 10
         # =======================
-        #self.world_to_screen()
+        # self.world_to_screen()  <--- plot() calls this
         self.plot()
-
+        # Set initial value of the combo-box
+        self.selected_map_box.current(newindex=self.map_ptr)
         #print('hi')
 
     def progress_begin(self):
@@ -116,7 +115,7 @@ class MapViewer(tk.Frame):
     def cb_change_map(self, evt):
         """Changes to the selected level in the combo box"""
         print("cb_change_map: Switching to and plotting level {}".format(self.selected_map_box.get()))
-        #showinfo(title="Map", message=msg)
+        # showinfo(title="Map", message=msg)
         self.level = None
         self.loadLevel(self.doom2_maps[self.doom2_maps.index(self.selected_map_box.get())])
         self.map_ptr = self.doom2_maps.index(self.level.map)
@@ -127,7 +126,7 @@ class MapViewer(tk.Frame):
         self.loadLevel(self.doom2_maps[self.map_ptr - 1])
         self.map_ptr = self.doom2_maps.index(self.level.map)
         self.plot()
-        #Update the combo box to reflect the level change
+        # Update the combo box to reflect the level change
         self.selected_map_box.current(newindex=self.map_ptr)
         print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
         print("\nprev_map: Current map is: {}".format(self.level.map))
@@ -136,6 +135,19 @@ class MapViewer(tk.Frame):
 
     def next_map(self):
         self.level = None
+
+        if self.map_ptr is 31:
+            self.loadLevel(self.doom2_maps[0])
+            self.map_ptr = self.doom2_maps.index(self.level.map)
+            self.plot()
+            # Update...
+            self.selected_map_box.current(newindex=self.map_ptr)
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+            print("\nnext_map: Current map is: {}".format(self.level.map))
+            print("next_map: Map Pointer is @ {}".format(self.map_ptr))
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+            return
+
         self.loadLevel(self.doom2_maps[self.map_ptr + 1])
         self.map_ptr = self.doom2_maps.index(self.level.map)
         self.plot()
@@ -150,7 +162,6 @@ class MapViewer(tk.Frame):
         """Draws the currently loaded level"""
         self.plot()
 
-
     def getPoints(self, points_file: str) -> list:
         """
         Load a list of points from a FILE that was written
@@ -159,7 +170,8 @@ class MapViewer(tk.Frame):
         param: points_file = path to points file
          """
         # TODO: Change this function to support the output format of
-        #       points_to_file
+        #       points_to_file UPDATE: This is done?
+        # TODO: Support loading an all_levels file...
 
         points_file = open(points_file, 'rb')
         points = pickle.load(points_file)
@@ -238,7 +250,6 @@ class MapViewer(tk.Frame):
 
             out_file.close()
 
-
     def loadWad(self, wadfile: str):
         """
         Loads a wadfile. Sets a self.wadfile attribute in instance
@@ -307,35 +318,31 @@ class MapViewer(tk.Frame):
         #self.progress_bar.set_value(30)
         #self.screen.bgcolor(self.BACKGROUND_COLOR)
         #self.screen.delay(1)
-        self.screen.tracer(0)
-        self.world_to_screen()
 
+        # Check for animate check button - Fix me
+        """if self.is() == 1:
+            self.screen.tracer(1)
+        else:
+            self.screen.tracer(0)"""
+        self.world_to_screen()
+        self.screen.tracer(0)
 
         for p in self.level.lines.lines:
-            # self.canvas.create_line(p['line-segment'].start, p['line-segment'].end)
-
             if -1 in p.values():
                 self.t_turtle.pencolor(self.ONE_SIDED_COLOR)
             else:
                 self.t_turtle.pencolor(self.TWO_SIDED_COLOR)
-
             self.t_turtle.penup()
             self.t_turtle.goto(p['line-segment'].start)
             self.t_turtle.pendown()
             self.t_turtle.goto(p['line-segment'].end)
-
-            self.progress_bar.stop()
-
-
-
-
-
+            # self.progress_bar.stop()
 
 
 if __name__ == "__main__":
     root = tk.Tk()
-    #MapViewer(root).pack(side="top", fill="both", expand=True)
+    # MapViewer(root).pack(side="top", fill="both", expand=True)
     MapViewer().pack(side="top", fill="both", expand=True)
     root.resizable(width=False, height=False)
     root.mainloop()
-    #MapViewer().mainloop()
+    # MapViewer().mainloop()

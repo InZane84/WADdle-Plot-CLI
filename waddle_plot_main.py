@@ -9,6 +9,8 @@ import threading
 # TODO: Why do I need the following? What's going on with the namespace?
 from tkinter import Checkbutton
 from tkinter import IntVar
+from tkinter import Menu
+from tkinter import filedialog as fd
 
 import planar
 from planar import Vec2
@@ -16,14 +18,18 @@ from waddle_plot import Wad, LineDefs, SideDefs, Vertexes, Level
 from pickle import dump, load
 
 
-
-
 class MapViewer(tk.Frame):
     def __init__(self, *args, **kwargs):
         tk.Frame.__init__(self, *args, **kwargs)
+
+        self.menubar = Menu(self)
+        file = Menu(self.menubar, tearoff=0)
+        file.add_command(label="Open a wadfile...", command=self.openFile_dialog)
+        self.menubar.add_cascade(label="File", menu=file)
+
         # Canvas
-        self.canvas = tk.Canvas(master=root, width=1285, height=725)
-        self.canvas.pack(side="top", fill="both", expand=True)
+        self.canvas = tk.Canvas(width=1285, height=725)
+        self.canvas.pack(side="bottom", expand=True)
         # self.canvas.configure(scrollregion=(-640, -360, 640, 360))
         # turtle opts
         self.t_turtle = turtle.RawTurtle(self.canvas)
@@ -32,6 +38,9 @@ class MapViewer(tk.Frame):
         self.TWO_SIDED_COLOR = "RED"
         self.BACKGROUND_COLOR = "BLACK"
         self.screen.bgcolor(self.BACKGROUND_COLOR)
+        # Menubar - NOT working. Something is going on with the namespace....
+
+
         # buttons
         nextmap_btn = tk.Button(self, text="Next MAP", command=self.next_map)
         nextmap_btn.pack(side="left", padx=5, pady=5)
@@ -44,7 +53,6 @@ class MapViewer(tk.Frame):
         self.selected_map_var = tk.StringVar()
         self.selected_map_box = ttk.Combobox(textvariable=self.selected_map_var)
         self.selected_map_box.bind('<<ComboboxSelected>>', self.cb_change_map)
-
 
         # var for Checkbutton state
         self.cb = IntVar()
@@ -68,8 +76,9 @@ class MapViewer(tk.Frame):
         # =============================
         # here...                   # |
         self.game = "DOOM"
-        self.loadWad("C:\Pydevel\WOS.wad")    # |
-        self.loadLevel("MAP01")      # |
+        # to load and display a level at startup from a static location
+        # self.loadWad("C:\Pydevel\WOS.wad")    # |
+        # self.loadLevel("MAP01")      # |
         # =============================
         # Need a better way than this...
         self.doom_maps = ["E1M1", "E1M2", "E1M3", "E1M4", "E1M5", "E1M6", "E1M7", "E1M8", "E1M9",
@@ -86,8 +95,10 @@ class MapViewer(tk.Frame):
         self.selected_map_box.pack(side='left', padx=5, pady=5)
         # This tracks the current drawn level
         # BUG: list index out of range when going past the end...
-        self.map_ptr = self.doom2_maps.index(self.level.map)
+        self.map_ptr = self.doom2_maps.index("MAP01")
         # print("__init__: map pointer is :  {}".format(self.map_ptr))
+
+        root.title("WADdle Plot - v0.9")
 
         """if self.game is "DOOM":
             self.map_ptr = self.doom_maps[0] + 1
@@ -111,7 +122,30 @@ class MapViewer(tk.Frame):
         self.selected_map_box.current(newindex=self.map_ptr)
         #print('hi')
         self.screen.tracer(0)
+        #self.plot()
+
+
+
+    def openFile_dialog(self):
+        """Calls the tk.filedialog to open a wadfile..."""
+
+        filetypes = (
+            ('wadfiles', '*.wad'),
+            ('All files', '*.*')
+        )
+
+        filename = fd.askopenfilename(
+            title='Open a DOOM wadfile',
+            initialdir='/',
+            filetypes=filetypes
+        )
+
+        self.loadWad(filename)
+        self.loadLevel(self.doom2_maps[self.doom2_maps.index("MAP01")])
+        self.map_ptr = self.doom2_maps.index(self.level.map)
         self.plot()
+        # Update combo-box...
+        self.selected_map_box.current(newindex=self.map_ptr)
 
     def progress_begin(self):
             time.sleep(5)
@@ -145,7 +179,7 @@ class MapViewer(tk.Frame):
     def next_map(self):
         self.level = None
 
-        if self.map_ptr is 31:
+        if self.map_ptr == 31:
             self.loadLevel(self.doom2_maps[0])
             self.map_ptr = self.doom2_maps.index(self.level.map)
             self.plot()
@@ -263,8 +297,6 @@ class MapViewer(tk.Frame):
         """ Loads a level.\n
         param: ExMx (DOOM) or MAPxx(DOOM2)
         """
-        if self.level is not None:
-            print("CAUTION: Loaded level has CHANGED!")
 
         self._wadfile.load_level_info(level)
         self.level = self._wadfile.build_level(level)
@@ -338,12 +370,21 @@ class MapViewer(tk.Frame):
             self.t_turtle.pendown()
             self.t_turtle.goto(p['line-segment'].end)
             # self.progress_bar.stop()
+        #Set title of main window
+        root.title("{} Plot [WADdle Plot - v0.9]".format(self.level.map))
 
 
 if __name__ == "__main__":
     root = tk.Tk()
-    # MapViewer(root).pack(side="top", fill="both", expand=True)
-    MapViewer().pack(side="top", fill="both", expand=True)
-    root.resizable(width=False, height=False)
+    plotter = MapViewer(root)
+    plotter.pack(side="top", fill="both",expand=True)
+    #root.resizable(width=False, height=False)
+
+    # Menu won't show up?!
+    #menubar = Menu(plotter)
+    #filemenu = Menu(root, tearoff=0)
+    #filemenu.add_command(label="Open")
+    root.config(menu=plotter.menubar)
+
     root.mainloop()
-    # MapViewer().mainloop()
+

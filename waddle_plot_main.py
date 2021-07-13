@@ -17,22 +17,40 @@ from planar import Vec2
 from waddle_plot import Wad, LineDefs, SideDefs, Vertexes, Level
 from pickle import dump, load
 
+from math import isclose
+import zipfile
 
 class MapViewer(tk.Frame):
     def __init__(self, *args, **kwargs):
         tk.Frame.__init__(self, *args, **kwargs)
-
+        tk.Frame.pack(self)
         self.menubar = Menu(self)
         file = Menu(self.menubar, tearoff=0)
-        file.add_command(label="Open a wadfile...", command=self.openFile_dialog)
+        file.add_command(label="Open a wadfile/zip archive of wadfiles...", command=self.openFile_dialog)
         self.menubar.add_cascade(label="File", menu=file)
 
         # Canvas
-        self.canvas = tk.Canvas(width=1285, height=725)
-        self.canvas.pack(side="bottom", expand=True)
-        # self.canvas.configure(scrollregion=(-640, -360, 640, 360))
+        self.canvas = tk.Canvas(width=800, height=600)
+        self.canvas.pack(side="bottom")
+        #self.canvas.configure(scrollregion=(-640, -360, 640, 360))
+
+        # Labels from level stats
+        """self.map_stats_frame = tk.LabelFrame(master=self)
+        #self.map_stats_frame.__init__(self)
+        self.map_stats_frame.pack(side="right")
+        self.map_stats = {"vertexnum_label": tk.Label(master=self.map_stats_frame, text="Vertexes")}
+        self.map_stats["vertexnum_label"].pack(side="left", padx=5, pady=5)"""
+
+        self.vnum = None
+        self.onLine = None
+
+
         # turtle opts
         self.t_turtle = turtle.RawTurtle(self.canvas)
+
+        # Trying to add a 2nd turtle for concurrent drawing..
+        self.t_turtle2 = turtle.RawTurtle(self.canvas)
+
         self.screen = self.t_turtle.getscreen()
         self.ONE_SIDED_COLOR = "GREEN"
         self.TWO_SIDED_COLOR = "RED"
@@ -42,13 +60,13 @@ class MapViewer(tk.Frame):
 
 
         # buttons
-        nextmap_btn = tk.Button(self, text="Next MAP", command=self.next_map)
-        nextmap_btn.pack(side="left", padx=5, pady=5)
         prevmap_btn = tk.Button(self, text="Prev MAP", command=self.prev_map)
         prevmap_btn.pack(side="left", padx=5, pady=5)
+        nextmap_btn = tk.Button(self, text="Next MAP", command=self.next_map)
+        nextmap_btn.pack(side="left", padx=5, pady=5)
         # Map Select Box Widget
         map_select_label = ttk.Label(text="MAP:")
-        map_select_label.pack(side="left", padx=5, pady=5)
+        map_select_label.pack(side="left")
 
         self.selected_map_var = tk.StringVar()
         self.selected_map_box = ttk.Combobox(textvariable=self.selected_map_var)
@@ -58,13 +76,13 @@ class MapViewer(tk.Frame):
         self.cb = IntVar()
 
         # Animate Checkbutton
-        self.anim_check_btn = Checkbutton(self, text="Animate", variable=self.cb, onvalue=1, offvalue=0, state=NORMAL, command=self.isChecked)
+        self.anim_check_btn = Checkbutton(self, text="Live-Plot(slow)", variable=self.cb, onvalue=1, offvalue=0, state=NORMAL, command=self.isChecked)
         self.anim_check_btn.pack(side="left", padx=5, pady=5)
 
 
         # Progress Bar (on draw) - can't get working
-        self.progress_bar = ttk.Progressbar(orient=tk.HORIZONTAL, mode='determinate')
-        self.progress_bar.pack(side="right", padx=5, pady=5)
+        #self.progress_bar = ttk.Progressbar(orient=tk.HORIZONTAL, mode='determinate')
+        #self.progress_bar.pack(side="right", padx=5, pady=5)
         # DEBUGGING ==========================================================
         # self.debug_points = self.getPoints("vectors.bin")
         # self.canvas.create_line()
@@ -92,9 +110,8 @@ class MapViewer(tk.Frame):
         # Map selection combo box
         self.selected_map_box['values'] = self.doom2_maps
         self.selected_map_box['state'] = 'readonly'
-        self.selected_map_box.pack(side='left', padx=5, pady=5)
+        self.selected_map_box.pack(side='left')
         # This tracks the current drawn level
-        # BUG: list index out of range when going past the end...
         self.map_ptr = self.doom2_maps.index("MAP01")
         # print("__init__: map pointer is :  {}".format(self.map_ptr))
 
@@ -111,10 +128,10 @@ class MapViewer(tk.Frame):
         self.map_y_max = None
         self.map_y_min = None
         # This could be wrong
-        self.screen_x_max = -640 + 10
-        self.screen_x_min = 640 - 10
-        self.screen_y_max = -360 + 10
-        self.screen_y_min = 360 - 10
+        self.screen_x_max = -400 + 10
+        self.screen_x_min = 400 - 10
+        self.screen_y_max = -300 + 10
+        self.screen_y_min = 300 - 10
         # =======================
         # self.world_to_screen()  <--- plot() calls this
 
@@ -131,25 +148,54 @@ class MapViewer(tk.Frame):
 
         filetypes = (
             ('wadfiles', '*.wad'),
+            ('zipfile archive', '*.zip'),
             ('All files', '*.*')
         )
 
         filename = fd.askopenfilename(
-            title='Open a DOOM wadfile',
+            title='Open a DOOM wadfile or a zipfile that contains wadfiles',
             initialdir='/',
             filetypes=filetypes
         )
 
-        self.loadWad(filename)
-        self.loadLevel(self.doom2_maps[self.doom2_maps.index("MAP01")])
-        self.map_ptr = self.doom2_maps.index(self.level.map)
-        self.plot()
-        # Update combo-box...
-        self.selected_map_box.current(newindex=self.map_ptr)
+        if filename.endswith('.wad') or filename.endswith('.WAD'):
+            self.loadWad(filename)
+            self.loadLevel(self.doom2_maps[self.doom2_maps.index("MAP01")])
+            self.map_ptr = self.doom2_maps.index(self.level.map)
+            self.plot()
+            # Update combo-box...
+            self.selected_map_box.current(newindex=self.map_ptr)
+
+        elif filename.endswith('.zip'):
+            # setup a ttk.combobox widget for archive-file selection
+            self.archive_loaded_display = tk.StringVar()
+            self.archived_loaded_box = ttk.Combobox(textvariable=self.archive_loaded_display)
+            self.archived_loaded_box.bind('<<ComboboxSelected>>', self.cb_change_archive_wadfile)
+            # load the zipfile
+            self.wad_archive = zipfile.ZipFile(filename)
+            # we only want the .wad files showing up in the combobox, not .txt describing said wadfiles
+            wad_archive_wadfile_names = []
+            for f in self.wad_archive.namelist():
+                if f.endswith('.wad'):
+                    wad_archive_wadfile_names.append(f)
+            # TODO: setup a text widget for viewing the txt files describing the wads
+            self.archived_loaded_box["values"] = wad_archive_wadfile_names
+            self.archived_loaded_box["state"] = "readonly"
+            self.archived_loaded_box.pack(side='left', anchor='sw', padx=5, pady=5)
+            self.archived_loaded_box.current(newindex=0)
+            # close the zipfile
+            self.wad_archive.close()
+
+
+        else:
+            print("{} is an INVALID wadfile!".format(filename))
+
+    def cb_change_archive_wadfile(self, evt):
+        print('hi from cb change archive fuck')
 
     def progress_begin(self):
             time.sleep(5)
-            self.progress_bar.start()
+            #self.progress_bar.start()
 
             # Checkbutton state func
 
@@ -188,7 +234,11 @@ class MapViewer(tk.Frame):
             return
 
         self.loadLevel(self.doom2_maps[self.map_ptr + 1])
-        self.map_ptr = self.doom2_maps.index(self.level.map)
+        try:
+            self.map_ptr = self.doom2_maps.index(self.level.map)
+        except AttributeError as whoo:
+            print(whoo)
+            print(whoo.args)
         self.plot()
         # Update the combo box to reflect the change
         self.selected_map_box.current(newindex=self.map_ptr)
@@ -228,7 +278,8 @@ class MapViewer(tk.Frame):
 
     def _points_toFile(self, p_file=False, all_levels=False):
         """"
-        Write points data to a FILE. This should NOT be called apart
+        Write points data to a FILE. This is an instance method!
+        This should NOT be called apart
         from __init__, due to the assumption that the level data has already
         been assembled by: self.loadlevel()
 
@@ -297,9 +348,12 @@ class MapViewer(tk.Frame):
         """ Loads a level.\n
         param: ExMx (DOOM) or MAPxx(DOOM2)
         """
-
-        self._wadfile.load_level_info(level)
-        self.level = self._wadfile.build_level(level)
+        try:
+            self._wadfile.load_level_info(level)
+            self.level = self._wadfile.build_level(level)
+        except AttributeError as whoops:
+            print("_loadLevel_: is of a {} type".format(self.level))
+            print(whoops)
 
     def world_to_screen(self):
         """ Translate our line end-points to screen-space"""
@@ -340,17 +394,30 @@ class MapViewer(tk.Frame):
             end_sy = (((cy - self.map_y_min) * screen_range_y) / map_range_y) + self.screen_y_min
             # Now we need to replace the current line-segment with a new instance...
             # We also need -start_sy and -end_sy to FLIP the map right-side UP!
-            start = start_sx, -start_sy
-            end = end_sx, -end_sy
+            start = start_sx, start_sy
+            end = end_sx, end_sy
             p['line-segment'] = planar.LineSegment.from_points((start, end))
 
     def plot(self):
         """ Plot the level"""
         self.t_turtle.reset()
+        self.t_turtle.speed(0)
         # Start the progress bar
         #self.progress_bar.set_value(30)
         #self.screen.bgcolor(self.BACKGROUND_COLOR)
         #self.screen.delay(1)
+
+        # 2nd turtle for concurrent plotting?
+        self.t_turtle2.circle(100)
+
+        # Level stats
+        if self.vnum:
+            self.vnum.destroy()
+            self.vnum = ttk.Label(text="Lines: {}".format(len(self.level.lines.lines)))
+            self.vnum.pack(side="right", padx=5)
+        if not self.vnum:
+            self.vnum = ttk.Label(text="Lines: {}".format(len(self.level.lines.lines)))
+            self.vnum.pack(side="right", padx=5)
 
         # Check for animate check button - Fix me
         if self.cb == 1:
@@ -360,7 +427,24 @@ class MapViewer(tk.Frame):
         self.world_to_screen()
         #self.screen.tracer(0)
 
+        # Determines if we are plotting in a highly-detailed area of the level
+        x_point_history = list()
+
+        def zoom_in():
+            #ZOOM!
+            self.screen.tracer(0)
+            self.screen.delay(0)
+            self.t_turtle.hideturtle()
+            #gotta zoom back out too....
+            pass
+
+        lines_drawn = 0
+        doZOOM = False
+
+        root.title("Plotting {}...".format(self.level.map))
         for p in self.level.lines.lines:
+            # If we're plotting in a highly detailed, small area,
+            # then let's zoom in so we can get a closer look.
             if -1 in p.values():
                 self.t_turtle.pencolor(self.ONE_SIDED_COLOR)
             else:
@@ -369,15 +453,40 @@ class MapViewer(tk.Frame):
             self.t_turtle.goto(p['line-segment'].start)
             self.t_turtle.pendown()
             self.t_turtle.goto(p['line-segment'].end)
-            # self.progress_bar.stop()
+            lines_drawn += 1
+
+            # Line label shown in GUI that we are drawing on...
+            if self.onLine:
+                self.onLine.destroy()
+                self.onLine = ttk.Label(text="Drawing Line: {} ".format(self.level.lines.lines.index(p)+1))
+                self.onLine.configure(background="green", foreground="black", relief="solid")
+                self.onLine.pack(side="right", padx=5)
+            if not self.onLine:
+                self.onLine = ttk.Label(text="Drawing Line: {} ".format(self.level.lines.lines.index(p)+1))
+                self.onLine.configure(background="green", foreground="black", relief="solid")
+                self.onLine.pack(side="right", padx=5)
+            # Needed for updates when click the next buttons. Removes overlap bug but adds a new one....
+            # TODO: Add a checkbutton to turn 'updates' on or off...
+            self.screen.update()
+            if lines_drawn > 4:
+                x_point_history.append(p['line-segment'].start.x)
+                # Let's see if we are in a highly-detailed area of the level...
+                if not isclose(x_point_history[-1], p['line-segment'].start.x, rel_tol=0.05):
+                    if doZOOM:
+                        zoom_in()
+        self.onLine.destroy()
+        self.onLine = ttk.Label(text="Finished plotting {}".format(self.level.map))
+        self.onLine.configure(background="red", foreground="black", relief="groove")
+        self.onLine.pack(side="right", padx=5)
         #Set title of main window
-        root.title("{} Plot [WADdle Plot - v0.9]".format(self.level.map))
+        root.title("{} from:  {}        [WADdle Plot - v0.9]".format(self.level.map, self._wadfile.wadfile.name))
+
 
 
 if __name__ == "__main__":
     root = tk.Tk()
     plotter = MapViewer(root)
-    plotter.pack(side="top", fill="both",expand=True)
+    plotter.pack(side="top", fill="both", expand=True)
     #root.resizable(width=False, height=False)
 
     # Menu won't show up?!

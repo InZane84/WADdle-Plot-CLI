@@ -311,23 +311,28 @@ class Plotter:
 			self.win.tracer(1)"""
 			
 	def plot(self, color=None):
+		self.PLOTTING = True
+
 		self.win.clear()
 		
 		if color != None:
 			self.ONE_SIDED_COLOR = color[0]
 			self.TWO_SIDED_COLOR = color[1]
-		
-		for linedef in self.level.lines.lines:
-			self.win.penup()
+		while self.PLOTTING:
+
+			screen = self.win.getscreen()
+			screen.bgcolor("GREY")
+			for linedef in self.level.lines.lines:
+				self.win.penup()
 			
-			if -1 in linedef.values(): self.win.pencolor(self.ONE_SIDED_COLOR)
-			else: self.win.pencolor(self.TWO_SIDED_COLOR)
+				if -1 in linedef.values(): self.win.pencolor(self.ONE_SIDED_COLOR)
+				else: self.win.pencolor(self.TWO_SIDED_COLOR)
 			
-			self.win.goto(linedef['line-segment'].start * self.offset * self.scale)
-			self.win.pendown()
-			self.win.goto(linedef['line-segment'].end * self.offset * self.scale)
-			self.win.penup()
-		self.win.screen.update()
+				self.win.goto(linedef['line-segment'].start * self.offset * self.scale)
+				self.win.pendown()
+				self.win.goto(linedef['line-segment'].end * self.offset * self.scale)
+				self.win.penup()
+			self.win.screen.update()
 
 
 class Args:

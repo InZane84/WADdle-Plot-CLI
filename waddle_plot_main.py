@@ -21,37 +21,43 @@ from pickle import dump, load
 from math import isclose
 import zipfile
 
-# TODO: Initialize all attributes in __init__ for maintenance sanity and keeping PyCharm happy! - 7/13/2021
 
-# TODO: Add program quit option to file menu and close the wadfile if it or 'X' is clicked -      7/13/2021
-
-# TODO: Add loading/plotting wadfiles from zipfiles and disabled widgets accordingly -            7/13/2021
-
-# TODO: Add Menu>View>Options for changing levels while plotting. Just have the gui option        7/13/2021
+# TODO: Initialize all attributes in __init__ for maintenance sanity and keeping PyCharm happy!                7/13/2021
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Add program quit option to file menu and close the wadfile if it or 'X' is clicked                     7/13/2021
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Add loading/plotting wadfiles from zipfiles and disabled widgets accordingly                           7/13/2021
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Add Menu>View>Options for changing levels while plotting. Just have the gui option                     7/13/2021
 #       enable the associated widgets for level switching
-
-# TODO: Add color changing of background, foreground and lines                                    7/13/2021
-
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Add color changing of background, foreground and lines                                                 7/13/2021
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Correctly set the Canvas size to match the aspect-ratio of the level. Computed from the map.           7/13/2021
+#       Some levels are "squashed" or stretched in either the X or Y dimension.
+# ----------------------------------------------------------------------------------------------------------------------
 
 class MapViewer(tk.Frame):
-    def __init__(self, *args, **kwargs):
-        tk.Frame.__init__(self, *args, **kwargs)
-        tk.Frame.pack(self)
-        self.menubar = Menu(self)
+    def __init__(self):
+        tk.Frame.__init__(self)
+        self.pack(expand=YES, fill=BOTH)
+        self.menubar = Menu(self.master)
+        self.master.config(menu=self.menubar)
         file = Menu(self.menubar, tearoff=0)
         file.add_command(label="Open a wadfile/zip archive of wadfiles...", command=self.openFile_dialog)
         self.menubar.add_cascade(label="File", menu=file)
         # add a "Edit" menu option
-        #edit = Menu(self.menubar, tearoff=0)
-        #edit.add_command(label="foo", command=self.noupdates)
+        edit = Menu(self.menubar, tearoff=0)
+        edit.add_command(label="auto-plot", command=self.autoplot)
+        self.menubar.add_cascade(label="Edit", menu=edit)
 
         def noupdates(self):
             pass
 
         # Canvas
-        self.canvas = tk.Canvas(width=800, height=600)
+        self.canvas = tk.Canvas(width=1280, height=960)
         self.canvas.pack(side="bottom")
-        # self.canvas.configure(scrollregion=(-640, -360, 640, 360))
+        #self.canvas.configure(scrollregion=(-640, -800, 640, 800))
 
         # Labels from level stats
         """self.map_stats_frame = tk.LabelFrame(master=self)
@@ -66,8 +72,8 @@ class MapViewer(tk.Frame):
         # turtle opts
         self.t_turtle = turtle.RawTurtle(self.canvas)
         self.screen = self.t_turtle.getscreen()
-        self.ONE_SIDED_COLOR = "#0000cc"
-        self.TWO_SIDED_COLOR = "#00a6a6"
+        self.ONE_SIDED_COLOR = "#00a6a6"
+        self.TWO_SIDED_COLOR = "#933000"
         self.BACKGROUND_COLOR = "BLACK"
         self.screen.bgcolor(self.BACKGROUND_COLOR)
 
@@ -129,7 +135,9 @@ class MapViewer(tk.Frame):
         self.map_ptr = self.doom2_maps.index("MAP01")
         # print("__init__: map pointer is :  {}".format(self.map_ptr))
 
-        root.title("WADdle Plot - v0.9")
+        self.master.title("WADdle Plot - v0.9")
+        self.master.resizable(width=False, height=False)
+
 
         """if self.game is "DOOM":
             self.map_ptr = self.doom_maps[0] + 1
@@ -142,10 +150,10 @@ class MapViewer(tk.Frame):
         self.map_y_max = None
         self.map_y_min = None
         # This could be wrong
-        self.screen_x_max = -400 + 10
-        self.screen_x_min = 400 - 10
-        self.screen_y_max = -300 + 10
-        self.screen_y_min = 300 - 10
+        self.screen_x_max = -640 + 10
+        self.screen_x_min = 640 - 10
+        self.screen_y_max = -480 + 10
+        self.screen_y_min = 480 - 10
         # Set initial value of the combo-box
         self.selected_map_box.current(newindex=self.map_ptr)
         self.screen.tracer(0)
@@ -154,25 +162,40 @@ class MapViewer(tk.Frame):
         self.solidline_color_btn = tk.Button(self, text="1-Sided line color",
                                    command=self.setSolid_linecolor)
         self.solidline_color_btn.pack(side="left")
+        self.solidline_color_btn.configure(background=self.ONE_SIDED_COLOR)
 
         self.transline_color_btn = tk.Button(self, text="2-Sided line color",
                                              command=self.setTrans_linecolor)
+        self.transline_color_btn.configure(background=self.TWO_SIDED_COLOR)
         self.transline_color_btn.pack(side="left")
+        # redraw level button
+        self.redraw_btn = ttk.Button(self, text="redraw", command=self.plot)
+        self.redraw_btn.configure(state='disabled')
+        self.redraw_btn.pack(side="left")
+
+    def autoplot(self):
+        """ calls by edit>auto-plot """
+        while self.level:
+            self.next_map()
+
 
     def setTrans_linecolor(self):
         """ Called when '2-Sided...' is clicked """
-        color = tkinter.colorchooser.askcolor()
+        color = tkinter.colorchooser.askcolor(title="Set 2-Sided LINE color", initialcolor=self.TWO_SIDED_COLOR)
         print(color[1])
         if color[1]:
             self.TWO_SIDED_COLOR = color[1]
+            #update button color to reflect change
+            self.transline_color_btn.configure(background=self.TWO_SIDED_COLOR)
             print("solid color set to {}".format(color[1]))
 
     def setSolid_linecolor(self):
         """ Called when '1-Sided..' is clicked """
-        color = tkinter.colorchooser.askcolor()
+        color = tkinter.colorchooser.askcolor(title="Set 1-Sided LINE color", initialcolor=self.ONE_SIDED_COLOR)
         print(color[1])
         if color[1]:
             self.ONE_SIDED_COLOR = color[1]
+            self.solidline_color_btn.configure(background=self.ONE_SIDED_COLOR)
             print("solid color set to {}".format(color[1]))
 
 
@@ -212,6 +235,8 @@ class MapViewer(tk.Frame):
                                        overrelief="solid", state="active")
             # enable the level-list selection box
             self.selected_map_box.configure(state="readonly")
+            # enable redraw gui button
+            self.redraw_btn.configure(state="active")
 
         elif filename.endswith('.zip'):
             # close the wadfile so we're not leaking memory
@@ -344,7 +369,7 @@ class MapViewer(tk.Frame):
         return points
 
     def _points_toFile(self, p_file=False, all_levels=False):
-        """"
+        """
         Write points data to a FILE. This is an instance method!
         This should NOT be called apart
         from __init__, due to the assumption that the level data has already
@@ -352,6 +377,11 @@ class MapViewer(tk.Frame):
 
         PARAM: points_file = Name of written file
         """
+
+        # TODO: Define a file format for storing points data. Put multiple points on a single line to
+        #       conserve file space!
+
+        # TODO: Add a menu option for loading and saving points data.
 
         # Write a single level
         if p_file:
@@ -384,8 +414,9 @@ class MapViewer(tk.Frame):
             yPoints = []
 
             print("Writing all level-points to {}".format(all_levels))
-            i= 0
+            i = 0
             while i < len(self.doom2_maps):
+                # TODO: We're not loading a new level so this is writing the SAME (level x len(self.doom2_maps)
                 loaded_level = self.level
                 print("Writing points for {} to {}".format(self.level.map, all_levels))
 
@@ -504,13 +535,17 @@ class MapViewer(tk.Frame):
         lines_drawn = 0
         doZOOM = False
 
-        root.title("Plotting {}...".format(self.level.map))
+        self.master.title("Plotting {}...".format(self.level.map))
 
         # disable level nav buttons while plotting so we don't corrupt tkinter internal state...
         self.prevmap_btn.configure(state="disabled")
         self.nextmap_btn.configure(state="disabled")
         # disable level-selection box
         self.selected_map_box.configure(state="disabled")
+
+        # Clicking this button during a map plot is BAD...
+        self.redraw_btn.configure(state="disabled")
+
         for p in self.level.lines.lines:
             # If we're plotting in a highly detailed, small area,
             # then let's zoom in so we can get a closer look.
@@ -546,34 +581,44 @@ class MapViewer(tk.Frame):
         # plot complete, re-enabled level nav buttons
         self.prevmap_btn.configure(state="active")
         self.nextmap_btn.configure(state="active")
-        # re-enabled level-selection box
+        # re-enable level-selection box
         self.selected_map_box.configure(state="readonly")
+        # re-enable redraw
+        self.redraw_btn.configure(state='active')
 
         self.onLine.destroy()
         self.onLine = ttk.Label(text="Finished plotting {}".format(self.level.map))
         self.onLine.configure(background="red", foreground="black", relief="groove")
         self.onLine.pack(side="right", padx=5)
         #Set title of main window
-        root.title("{} from:  {}        [WADdle Plot - v0.9]".format(self.level.map, self._wadfile.wadfile.name))
+        self.master.title("{} from:  {}        [WADdle Plot - v0.9]".format(self.level.map, self._wadfile.wadfile.name))
 
 
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    plotter = MapViewer(root)
-    plotter.pack(side="top", fill="both", expand=True)
+    # root = tk.Tk() update
+
+    # plotter = MapViewer(root) update
+    # plotter.pack(side="top", fill="both", expand=True)update
     #root.resizable(width=False, height=False)
 
     # Menu won't show up?!
     #menubar = Menu(plotter)
     #filemenu = Menu(root, tearoff=0)
     #filemenu.add_command(label="Open")
-    root.config(menu=plotter.menubar)
 
-    root.mainloop()
+    # root.config(menu=plotter.menubar) update
+
+    # root.mainloop() update
     # close opened wadfile(s)
-    if plotter._wadfile:
+
+    MapViewer().mainloop()
+
+    if MapViewer()._wadfile:
+        MapViewer()._wadfile.close()
+
+    """if plotter._wadfile:
         print("{} is: {}".format(plotter._wadfile.wadfile, "open"))
         w_file = plotter._wadfile.wadfile.name
         plotter._wadfile.wadfile.close()
-        print("Closed {}".format(w_file))
+        print("Closed {}".format(w_file))"""

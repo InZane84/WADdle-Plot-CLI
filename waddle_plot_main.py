@@ -31,10 +31,10 @@ import zipfile
 # TODO: Add Menu>View>Options for changing levels while plotting. Just have the gui option                     7/13/2021
 #       enable the associated widgets for level switching
 # ----------------------------------------------------------------------------------------------------------------------
-# TODO: Add color changing of background, foreground and lines                                                 7/13/2021
-# ----------------------------------------------------------------------------------------------------------------------
 # TODO: Correctly set the Canvas size to match the aspect-ratio of the level. Computed from the map.           7/13/2021
 #       Some levels are "squashed" or stretched in either the X or Y dimension.
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Fix the mess that is the self.autoplot_btn!                                                            7/15/2021
 # ----------------------------------------------------------------------------------------------------------------------
 
 class MapViewer(tk.Frame):
@@ -398,8 +398,9 @@ class MapViewer(tk.Frame):
         self.plot()
 
     def widgets_restore(self):
-        """ called by the for-loop in self.plot() to restore widget state so we can safely
-            break out of the for-loop. Which is needed to safely stop autoplot.
+        """
+        called by the for-loop in self.plot() to restore widget state so we can safely
+        break out of the for-loop. Which is needed to safely stop autoplot.
         """
 
         # activate widgets disabled before entering the for-loop in self.plot()
@@ -410,7 +411,37 @@ class MapViewer(tk.Frame):
         # update window title
         self.master.title("{} from:    {}               [WADdle Plot-v.0.9]".format(self.level.map, self._wadfile.wadfile.name))
 
-    def getPoints(self, points_file: str) -> list:
+    # ==================================================================================================================
+    # TODO: Functions getLines and lines_toFile will be beneficial when I want to implement connecting to
+    #       the 'idgames database' or any website with wadfiles...
+    #       These wadfiles are typically within a zipfile. I don't plan on storing the zipfiles on the
+    #       client's machine(hdd) when accessing the the contained wad(s).
+    #       The data(vertices, lines) needed to plot the maps will be pulled from the wads and stored
+    #       in a textual format. This will conserve ALOT of space if dozens (or even hundreds) of wadfiles
+    #       are pulled into WADdle Plot from the net. Let alone thousands...
+    #
+    #       Eventually, it would be neat to scrap all know wadfile sites and get their wadfiles. A server
+    #       running a SQLite DB would be neat. Client programs(WADdle Plot) could check the WADdle Plot DB
+    #       first, for wadfiles. Then, check known wadfile internet sites. If a pulled wadfile is not in the
+    #       WADdle Plot central DB, we add it to it! Any wadfiles on the user's machine that are not in the
+    #       central db could also be added to it, with the user's consent(of course)...
+    #
+    #       Wadfiles(some) are art! In the interest of preserving this, this is the direction I see
+    #       WADdle Plot heading towards. An assimilation and textual conversion, of the needed data
+    #       to display(mostly, user-created) wadfiles. All in the interest of preserving this
+    #       2D line-drawn art and taking as little space as possible to store it...
+    #
+    # TODO: At the moment, WADdle Plot will plot levels within 'official' ID Games wadfiles. This may cross
+    #       the legal boundary for being acceptable(at least to Bethesda?) and certainly is in a grey area.
+    #       I plan on disallowing this unless official IWADs are detected on a user's machine. The official
+    #       IWADs won't be 'assimilated' into the central WADdle Plot DB...
+    #
+    # NOTE: "Slaughter" style maps have several "enemy-spawner" box areas, outside the map. Frankly, their
+    #        like a blemish on an otherwise perfectly constructed facade.
+    #        Eventually, an algorithm will be devised that removes(or ignores) these stains...
+    # ==================================================================================================================
+
+    def getLines(self, points_file: str) -> list:
         """
         Load a list of points from a FILE that was written
         by  _points_toFile
@@ -439,14 +470,15 @@ class MapViewer(tk.Frame):
 
         return points
 
-    def _points_toFile(self, p_file=False, all_levels=False):
+    def lines_toFile(self, lines_filename=False, all_levels=False):
         """
-        Write points data to a FILE. This is an instance method!
-        This should NOT be called apart
-        from __init__, due to the assumption that the level data has already
-        been assembled by: self.loadlevel()
+        Create a file with the lines from the loaded level
 
-        PARAM: points_file = Name of written file
+        PARAM: lines_filename TYPE: string
+        Name of file to create
+
+        PARAM: all_levels TYPE: bool
+        Write the lines of all levels, in the loaded wadfile.
         """
 
         # TODO: Define a file format for storing points data. Put multiple points on a single line to
@@ -455,8 +487,8 @@ class MapViewer(tk.Frame):
         # TODO: Add a menu option for loading and saving points data.
 
         # Write a single level
-        if p_file:
-            out_file = open(p_file, 'wb')
+        if lines_filename:
+            out_file = open(lines_filename, 'wb')
 
             xPoints = []
             yPoints = []
@@ -669,7 +701,11 @@ class MapViewer(tk.Frame):
                     self.onLine.configure(background="green", foreground="black", relief="solid")
                     self.onLine.pack(side="right", padx=5)
                 # Needed for updates when click the next buttons. Removes overlap bug but adds a new one....
+
                 # TODO: Add a checkbutton to turn 'updates' on or off...
+                # NOTE: After the mess associated with the creation of 'autoplotting' maybe the above is not
+                #       such a good idea!
+
                 self.screen.update()
 
                 # check if autoplot btn is clicked

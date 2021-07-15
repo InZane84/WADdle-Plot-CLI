@@ -13,7 +13,6 @@ import argparse
 from planar.line import LineSegment
 from turtle import *
 
-# TODO: convert to Py3
 
 __author__ = 'InZane84'
 __email__ = 'InZaneGamer84@protonmail.com'
@@ -225,7 +224,6 @@ class Wad:
 			info['lumpname'] = info_unpacked[2].strip(b'\x00')
 			#decode...
 			info['lumpname'] = info['lumpname'].decode("utf")
-			# TODO: Equality test is not working!!!!
 			i += 1
 			if info['lumpname'] == mapname:
 				# We are at the beginning of the level entries

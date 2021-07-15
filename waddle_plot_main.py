@@ -598,9 +598,12 @@ class MapViewer(tk.Frame):
             p['line-segment'] = planar.LineSegment.from_points((start, end))
 
     def plot(self):
-        """ Plot the level"""
+        """ Plot the level """
 
-        self.t_turtle.reset()
+        # don't reset the screen while resuming
+        if self.canRESUME is not True:
+            self.t_turtle.reset()
+
         self.t_turtle.speed(0)
         # Start the progress bar
         #self.progress_bar.set_value(30)
@@ -657,13 +660,24 @@ class MapViewer(tk.Frame):
                     self.t_turtle.pencolor(self.ONE_SIDED_COLOR)
                 else:
                     self.t_turtle.pencolor(self.TWO_SIDED_COLOR)
-                if p['number'] > 0:
+                if p['number'] > self.LASTLINE:
                     self.t_turtle.penup()
                     self.t_turtle.goto(p['line-segment'].start)
                     self.t_turtle.pendown()
                     self.t_turtle.goto(p['line-segment'].end)
                     self.canRESUME = False
                     self.widgets_restore()
+                    # Update Drawing Line: xxx in GUI on top of window...
+                    if self.onLine:
+                        self.onLine.destroy()
+                        self.onLine = ttk.Label(text="Drawing Line: {}".format(self.level.lines.lines.index(p)+1))
+                        self.onLine.configure(background="green", foreground="black", relief="solid")
+                        self.onLine.pack(side="right", padx=5)
+                        # So calling this update method fixed one BIG problem...
+                        # Apparently the onLine widget was blocking the canvas from smoothly updating...
+                        self.onLine.update()
+
+                    #self.screen.update()
 
                     if self.autoplot_cb.get() == 0 and self.AUTOPLOT is True:
                         self.AUTOPLOT = False

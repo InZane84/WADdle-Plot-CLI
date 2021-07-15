@@ -48,8 +48,8 @@ class MapViewer(tk.Frame):
         self.menubar.add_cascade(label="File", menu=file)
         # add a "Edit" menu option
         edit = Menu(self.menubar, tearoff=0)
-        edit.add_command(label="auto-plot", command=self.autoplot)
-        self.menubar.add_cascade(label="Edit", menu=edit)
+        #edit.add_command(label="auto-plot", command=self.autoplot)
+        #self.menubar.add_cascade(label="Edit", menu=edit)
 
         def noupdates(self):
             pass
@@ -96,7 +96,7 @@ class MapViewer(tk.Frame):
         self.cb = IntVar()
         # Animate Checkbutton
         self.anim_check_btn = Checkbutton(self, text="Live-Plot(slow)", variable=self.cb, onvalue=1,
-                                          offvalue=0, state=NORMAL, command=self.isChecked)
+                                          offvalue=0, command=self.isChecked)
         self.anim_check_btn.configure(state="disabled")
         self.anim_check_btn.pack(side="left", padx=5, pady=5)
 
@@ -172,12 +172,22 @@ class MapViewer(tk.Frame):
         self.redraw_btn = ttk.Button(self, text="redraw", command=self.plot)
         self.redraw_btn.configure(state='disabled')
         self.redraw_btn.pack(side="left")
+        # autplot check button
+        self.autoplot_cb = IntVar()
+        self.autoplot_btn = ttk.Checkbutton(self, text="autoplot", variable=self.autoplot_cb,
+                                            onvalue=1, offvalue=0, state=NORMAL,
+                                            command=self.autoplot)
+        self.autoplot_btn.configure(state='disabled')
+        self.autoplot_btn.pack(side='left', anchor='sw', padx=5, pady=5)
 
     def autoplot(self):
-        """ calls by edit>auto-plot """
-        while self.level:
-            self.next_map()
-
+        """ called by autoplot """
+        self.plotall = 1
+        if self.autoplot_cb.get() == 1:
+            while self.level and self.plotall:
+                self.next_map()
+        if self.autoplot_cb.get() == 0:
+            print("implement plot stop!")
 
     def setTrans_linecolor(self):
         """ Called when '2-Sided...' is clicked """
@@ -225,9 +235,11 @@ class MapViewer(tk.Frame):
 
             # activate 'animate' checkbutton
             self.anim_check_btn.configure(state="active")
-            self.plot()
             # Update combo-box...
             self.selected_map_box.current(newindex=self.map_ptr)
+
+            self.plot()
+
             # 'enable' level navigation buttons
             self.prevmap_btn.configure(foreground="black", relief="raised",
                                        overrelief="solid", state="active")
@@ -237,6 +249,8 @@ class MapViewer(tk.Frame):
             self.selected_map_box.configure(state="readonly")
             # enable redraw gui button
             self.redraw_btn.configure(state="active")
+            # enable autoplot check btn
+            self.autoplot_btn.configure(state='active')
 
         elif filename.endswith('.zip'):
             # close the wadfile so we're not leaking memory
@@ -518,9 +532,6 @@ class MapViewer(tk.Frame):
         if self.cb == 0:
             self.screen.tracer(0)
         self.world_to_screen()
-        #self.screen.tracer(0)
-
-
         # Determines if we are plotting in a highly-detailed area of the level
         x_point_history = list()
 
@@ -593,7 +604,9 @@ class MapViewer(tk.Frame):
         #Set title of main window
         self.master.title("{} from:  {}        [WADdle Plot - v0.9]".format(self.level.map, self._wadfile.wadfile.name))
 
-
+        # Check if we should stop autoplotting
+        if self.autoplot_cb.get() == 0:
+            self.plotall = 0
 
 if __name__ == "__main__":
     # root = tk.Tk() update

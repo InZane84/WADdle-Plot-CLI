@@ -54,6 +54,12 @@ class MapViewer(tk.Frame):
         def noupdates(self):
             pass
 
+        self.AUTOPLOT = None
+        self.canRESUME = False
+
+        # HACK
+        self.autoplot_btn = None
+
         # Canvas
         self.canvas = tk.Canvas(width=1280, height=960)
         self.canvas.pack(side="bottom")
@@ -172,22 +178,42 @@ class MapViewer(tk.Frame):
         self.redraw_btn = ttk.Button(self, text="redraw", command=self.plot)
         self.redraw_btn.configure(state='disabled')
         self.redraw_btn.pack(side="left")
-        # autplot check button
+        """# autplot check button
         self.autoplot_cb = IntVar()
-        self.autoplot_btn = ttk.Checkbutton(self, text="autoplot", variable=self.autoplot_cb,
+        self.autoplot_btn = ttk.Checkbutton(self, text="autoplot (Experimental)", variable=self.autoplot_cb,
                                             onvalue=1, offvalue=0, state=NORMAL,
                                             command=self.autoplot)
         self.autoplot_btn.configure(state='disabled')
-        self.autoplot_btn.pack(side='left', anchor='sw', padx=5, pady=5)
+        self.autoplot_btn.pack(side='left', anchor='sw', padx=5, pady=5)"""
 
     def autoplot(self):
         """ called by autoplot """
-        self.plotall = 1
-        if self.autoplot_cb.get() == 1:
-            while self.level and self.plotall:
-                self.next_map()
-        if self.autoplot_cb.get() == 0:
-            print("implement plot stop!")
+
+
+        while self.autoplot_cb.get() == 1 and self.canRESUME is not True:
+            self.autoplot_btn.configure(text=['Plotting all levels within loaded wadfile. Click to pause'])
+            self.AUTOPLOT = True
+            self.next_map()
+
+        if self.autoplot_cb.get() == 1 and self.canRESUME is True:
+            #self.autoplot_btn.destroy()
+            self.autoplot_btn.configure(text='If you uncheck me and click anything else in the GUI... Check me after unchecking!')
+
+            self.AUTOPLOT = True
+            self.plot()
+
+        """while self.AUTOPLOT is True:
+            self.next_map()"""
+
+
+    def isAutoPlot(self):
+        """ Are we currently plotting """
+        if self.AUTOPLOT is True:
+            print("AUTOPILOT is True")
+            return True
+        if self.AUTOPLOT is False:
+            print("AUTOPILOT is False")
+            return False
 
     def setTrans_linecolor(self):
         """ Called when '2-Sided...' is clicked """
@@ -211,6 +237,11 @@ class MapViewer(tk.Frame):
 
     def openFile_dialog(self):
         """Calls the tk.filedialog to open a wadfile..."""
+        # TODO: This function has descended into the abyss...Refactor...everything?
+
+        # I didn't plan for the functionality I am attempting to provide with this button...
+        if self.autoplot_btn:
+            self.autoplot_btn.destroy()
 
         filetypes = (
             ('wadfiles', '*.wad'),
@@ -237,9 +268,17 @@ class MapViewer(tk.Frame):
             self.anim_check_btn.configure(state="active")
             # Update combo-box...
             self.selected_map_box.current(newindex=self.map_ptr)
+            # enable autoplot check btn
+            self.autoplot_cb = IntVar()
+            self.autoplot_btn = ttk.Checkbutton(self,
+                                                text="autoplot - Click me to enter the 'event-horizon'! (WIP)",
+                                                variable=self.autoplot_cb, onvalue=1, offvalue=0,
+                                                command=self.autoplot)
+            self.autoplot_btn.configure(state='disabled')
+            self.autoplot_btn.pack(side='left', anchor='sw', padx=5, pady=5)
 
             self.plot()
-
+            self.autoplot_btn.configure(state='enabled')
             # 'enable' level navigation buttons
             self.prevmap_btn.configure(foreground="black", relief="raised",
                                        overrelief="solid", state="active")
@@ -249,8 +288,7 @@ class MapViewer(tk.Frame):
             self.selected_map_box.configure(state="readonly")
             # enable redraw gui button
             self.redraw_btn.configure(state="active")
-            # enable autoplot check btn
-            self.autoplot_btn.configure(state='active')
+
 
         elif filename.endswith('.zip'):
             # close the wadfile so we're not leaking memory
@@ -316,6 +354,10 @@ class MapViewer(tk.Frame):
 
     def prev_map(self):
         """ Called when 'prev map' tk.Button is clicked """
+
+        # this damnable button
+        self.autoplot_btn.configure(state=['disabled'])
+
         self.level = None
 
         # is a wadfile loaded
@@ -325,6 +367,8 @@ class MapViewer(tk.Frame):
             self.plot()
             # Update the combo box to reflect the level change
             self.selected_map_box.current(newindex=self.map_ptr)
+
+        self.autoplot_btn.configure(state='active')
 
     def next_map(self):
         """ Called when the 'next map' tk.Button is clicked """
@@ -352,6 +396,19 @@ class MapViewer(tk.Frame):
     def draw_map(self):
         """Draws the currently loaded level"""
         self.plot()
+
+    def widgets_restore(self):
+        """ called by the for-loop in self.plot() to restore widget state so we can safely
+            break out of the for-loop. Which is needed to safely stop autoplot.
+        """
+
+        # activate widgets disabled before entering the for-loop in self.plot()
+        self.prevmap_btn.configure(state='active')
+        self.nextmap_btn.configure(state='active')
+        self.selected_map_box.configure(state='active')
+        self.redraw_btn.configure(state='active')
+        # update window title
+        self.master.title("{} from:    {}               [WADdle Plot-v.0.9]".format(self.level.map, self._wadfile.wadfile.name))
 
     def getPoints(self, points_file: str) -> list:
         """
@@ -510,6 +567,7 @@ class MapViewer(tk.Frame):
 
     def plot(self):
         """ Plot the level"""
+
         self.t_turtle.reset()
         self.t_turtle.speed(0)
         # Start the progress bar
@@ -557,32 +615,76 @@ class MapViewer(tk.Frame):
         # Clicking this button during a map plot is BAD...
         self.redraw_btn.configure(state="disabled")
 
-        for p in self.level.lines.lines:
-            # If we're plotting in a highly detailed, small area,
-            # then let's zoom in so we can get a closer look.
-            if -1 in p.values():
-                self.t_turtle.pencolor(self.ONE_SIDED_COLOR)
-            else:
-                self.t_turtle.pencolor(self.TWO_SIDED_COLOR)
-            self.t_turtle.penup()
-            self.t_turtle.goto(p['line-segment'].start)
-            self.t_turtle.pendown()
-            self.t_turtle.goto(p['line-segment'].end)
-            lines_drawn += 1
+        def plot_resume():
+            pass
 
-            # Line label shown in GUI that we are drawing on...
-            if self.onLine:
-                self.onLine.destroy()
-                self.onLine = ttk.Label(text="Drawing Line: {} ".format(self.level.lines.lines.index(p)+1))
-                self.onLine.configure(background="green", foreground="black", relief="solid")
-                self.onLine.pack(side="right", padx=5)
-            if not self.onLine:
-                self.onLine = ttk.Label(text="Drawing Line: {} ".format(self.level.lines.lines.index(p)+1))
-                self.onLine.configure(background="green", foreground="black", relief="solid")
-                self.onLine.pack(side="right", padx=5)
-            # Needed for updates when click the next buttons. Removes overlap bug but adds a new one....
-            # TODO: Add a checkbutton to turn 'updates' on or off...
+        # We resumed a paused plot (unchecked autoplot button)
+        if self.canRESUME is True:
+            for p in self.level.lines.lines:
+                if -1 in p.values():
+                    self.t_turtle.pencolor(self.ONE_SIDED_COLOR)
+                else:
+                    self.t_turtle.pencolor(self.TWO_SIDED_COLOR)
+                if p['number'] > 0:
+                    self.t_turtle.penup()
+                    self.t_turtle.goto(p['line-segment'].start)
+                    self.t_turtle.pendown()
+                    self.t_turtle.goto(p['line-segment'].end)
+                    self.canRESUME = False
+                    self.widgets_restore()
+
+                    if self.autoplot_cb.get() == 0 and self.AUTOPLOT is True:
+                        self.AUTOPLOT = False
+                        self.widgets_restore()
+                        self.autoplot_btn.configure(text="autoplot (PAUSED - Click to RESUME")
+                        self.LASTLINE = p
+                        self.canRESUME = True
+                        return
             self.screen.update()
+            return
+
+        if not self.canRESUME:
+            print('calling orig for-loop from plot()')
+            for p in self.level.lines.lines:
+                # If we're plotting in a highly detailed, small area,
+                # then let's zoom in so we can get a closer look.
+                if -1 in p.values():
+                    self.t_turtle.pencolor(self.ONE_SIDED_COLOR)
+                else:
+                    self.t_turtle.pencolor(self.TWO_SIDED_COLOR)
+                self.t_turtle.penup()
+                self.t_turtle.goto(p['line-segment'].start)
+                self.t_turtle.pendown()
+                self.t_turtle.goto(p['line-segment'].end)
+                lines_drawn += 1
+
+                # Line label shown in GUI that we are drawing on...
+                if self.onLine:
+                    self.onLine.destroy()
+                    self.onLine = ttk.Label(text="Drawing Line: {} ".format(self.level.lines.lines.index(p)+1))
+                    self.onLine.configure(background="green", foreground="black", relief="solid")
+                    self.onLine.pack(side="right", padx=5)
+                if not self.onLine:
+                    self.onLine = ttk.Label(text="Drawing Line: {} ".format(self.level.lines.lines.index(p)+1))
+                    self.onLine.configure(background="green", foreground="black", relief="solid")
+                    self.onLine.pack(side="right", padx=5)
+                # Needed for updates when click the next buttons. Removes overlap bug but adds a new one....
+                # TODO: Add a checkbutton to turn 'updates' on or off...
+                self.screen.update()
+
+                # check if autoplot btn is clicked
+                if self.autoplot_cb.get() == 0 and self.AUTOPLOT is True:
+                    self.AUTOPLOT = False
+                    self.widgets_restore()
+                    self.autoplot_btn.configure(text="autoplot (PAUSED - Click to RESUME")
+                    # Save the last line so we can resume plotting, if requested
+                    self.LASTLINE = p['number']
+                    print('saved last line of {}'.format(self.LASTLINE))
+                    self.canRESUME = True
+                    self.onLine.configure(text="Plot halted @ line: {}".format(self.level.lines.lines.index(p)))
+                    return
+
+
             if lines_drawn > 4:
                 x_point_history.append(p['line-segment'].start.x)
                 # Let's see if we are in a highly-detailed area of the level...
@@ -604,9 +706,10 @@ class MapViewer(tk.Frame):
         #Set title of main window
         self.master.title("{} from:  {}        [WADdle Plot - v0.9]".format(self.level.map, self._wadfile.wadfile.name))
 
-        # Check if we should stop autoplotting
-        if self.autoplot_cb.get() == 0:
-            self.plotall = 0
+        # Check if we should stop autoplotting - waits for level to complete
+        # TODO: remove?
+        """if self.autoplot_cb.get() == 0:
+            self.plotall = 0"""
 
 if __name__ == "__main__":
     # root = tk.Tk() update

@@ -1,5 +1,8 @@
 # WADdle Plot
 **STATUS:** *Currently only loads DOOM2 maps without ACS lumps. Working on it...*
+
+NOTE: Thes are old images. GUI is better now....
+
 ## A DOOM wadfile parser/map plotter
 
 WADdle plot displays levels from within DOOM wadfiles. It's currently under heavy construction...

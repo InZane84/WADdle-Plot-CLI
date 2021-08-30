@@ -1,70 +1,114 @@
 import pickle
 import tkinter as tk
-#from tkinter import ttk
+# from tkinter import ttk
+import tkinter.colorchooser
 import tkinter.ttk as ttk
 import turtle
 from tkinter.constants import *
 import time
 import threading
-# TODO: Why do I need the following? What's going on with the namespace?
 from tkinter import Checkbutton
 from tkinter import IntVar
 from tkinter import Menu
 from tkinter import filedialog as fd
+#from tkinter.colorchooser import askcolor
 
 import planar
 from planar import Vec2
 from waddle_plot import Wad, LineDefs, SideDefs, Vertexes, Level
 from pickle import dump, load
 
+from math import isclose
+import zipfile
+
+
+# TODO: Initialize all attributes in __init__ for maintenance sanity and keeping PyCharm happy!                7/13/2021
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Add program quit option to file menu and close the wadfile if it or 'X' is clicked                     7/13/2021
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Add loading/plotting wadfiles from zipfiles and disabled widgets accordingly                           7/13/2021
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Add Menu>View>Options for changing levels while plotting. Just have the gui option                     7/13/2021
+#       enable the associated widgets for level switching
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Correctly set the Canvas size to match the aspect-ratio of the level. Computed from the map.           7/13/2021
+#       Some levels are "squashed" or stretched in either the X or Y dimension.
+# ----------------------------------------------------------------------------------------------------------------------
+# TODO: Fix the mess that is the self.autoplot_btn!                                                            7/15/2021
+# ----------------------------------------------------------------------------------------------------------------------
 
 class MapViewer(tk.Frame):
-    def __init__(self, *args, **kwargs):
-        tk.Frame.__init__(self, *args, **kwargs)
-
-        self.menubar = Menu(self)
+    def __init__(self):
+        tk.Frame.__init__(self)
+        self.pack(expand=YES, fill=BOTH)
+        self.menubar = Menu(self.master)
+        self.master.config(menu=self.menubar)
         file = Menu(self.menubar, tearoff=0)
-        file.add_command(label="Open a wadfile...", command=self.openFile_dialog)
+        file.add_command(label="Open a wadfile/zip archive of wadfiles...", command=self.openFile_dialog)
         self.menubar.add_cascade(label="File", menu=file)
+        # add a "Edit" menu option
+        edit = Menu(self.menubar, tearoff=0)
+        #edit.add_command(label="auto-plot", command=self.autoplot)
+        #self.menubar.add_cascade(label="Edit", menu=edit)
+
+        def noupdates(self):
+            pass
+
+        self.AUTOPLOT = None
+        self.canRESUME = False
+
+        # HACK
+        self.autoplot_btn = None
 
         # Canvas
-        self.canvas = tk.Canvas(width=1285, height=725)
-        self.canvas.pack(side="bottom", expand=True)
-        # self.canvas.configure(scrollregion=(-640, -360, 640, 360))
+        self.canvas = tk.Canvas(width=1280, height=960)
+        self.canvas.pack(side="bottom")
+        #self.canvas.configure(scrollregion=(-640, -800, 640, 800))
+
+        # Labels from level stats
+        """self.map_stats_frame = tk.LabelFrame(master=self)
+        #self.map_stats_frame.__init__(self)
+        self.map_stats_frame.pack(side="right")
+        self.map_stats = {"vertexnum_label": tk.Label(master=self.map_stats_frame, text="Vertexes")}
+        self.map_stats["vertexnum_label"].pack(side="left", padx=5, pady=5)"""
+
+        self.vnum = None
+        self.onLine = None
+
         # turtle opts
         self.t_turtle = turtle.RawTurtle(self.canvas)
         self.screen = self.t_turtle.getscreen()
-        self.ONE_SIDED_COLOR = "GREEN"
-        self.TWO_SIDED_COLOR = "RED"
+        self.ONE_SIDED_COLOR = "#00a6a6"
+        self.TWO_SIDED_COLOR = "#933000"
         self.BACKGROUND_COLOR = "BLACK"
         self.screen.bgcolor(self.BACKGROUND_COLOR)
-        # Menubar - NOT working. Something is going on with the namespace....
 
-
-        # buttons
-        nextmap_btn = tk.Button(self, text="Next MAP", command=self.next_map)
-        nextmap_btn.pack(side="left", padx=5, pady=5)
-        prevmap_btn = tk.Button(self, text="Prev MAP", command=self.prev_map)
-        prevmap_btn.pack(side="left", padx=5, pady=5)
+        # wadfile level navigation buttons (previous, next)
+        self.prevmap_btn = tk.Button(self, text="Prev MAP", command=self.prev_map)
+        self.prevmap_btn.configure(background="white", foreground="grey", relief="solid", state="disabled")
+        self.prevmap_btn.pack(side="left", padx=5, pady=5)
+        self.nextmap_btn = tk.Button(self, text="Next MAP", command=self.next_map)
+        self.nextmap_btn.configure(background="white", foreground="grey", relief="solid", state="disabled")
+        self.nextmap_btn.pack(side="left", padx=5, pady=5)
         # Map Select Box Widget
         map_select_label = ttk.Label(text="MAP:")
-        map_select_label.pack(side="left", padx=5, pady=5)
+        map_select_label.pack(side="left")
 
         self.selected_map_var = tk.StringVar()
         self.selected_map_box = ttk.Combobox(textvariable=self.selected_map_var)
+        self.selected_map_box.configure(state="disabled")
         self.selected_map_box.bind('<<ComboboxSelected>>', self.cb_change_map)
-
         # var for Checkbutton state
         self.cb = IntVar()
-
         # Animate Checkbutton
-        self.anim_check_btn = Checkbutton(self, text="Animate", variable=self.cb, onvalue=1, offvalue=0, state=NORMAL, command=self.isChecked)
+        self.anim_check_btn = Checkbutton(self, text="Live-Plot(slow)", variable=self.cb, onvalue=1,
+                                          offvalue=0, command=self.isChecked)
+        self.anim_check_btn.configure(state="disabled")
         self.anim_check_btn.pack(side="left", padx=5, pady=5)
 
-
         # Progress Bar (on draw) - can't get working
-        self.progress_bar = ttk.Progressbar(orient=tk.HORIZONTAL, mode='determinate')
-        self.progress_bar.pack(side="right", padx=5, pady=5)
+        # self.progress_bar = ttk.Progressbar(orient=tk.HORIZONTAL, mode='determinate')
+        # self.progress_bar.pack(side="right", padx=5, pady=5)
         # DEBUGGING ==========================================================
         # self.debug_points = self.getPoints("vectors.bin")
         # self.canvas.create_line()
@@ -91,14 +135,15 @@ class MapViewer(tk.Frame):
                            "MAP31", "MAP32"]
         # Map selection combo box
         self.selected_map_box['values'] = self.doom2_maps
-        self.selected_map_box['state'] = 'readonly'
-        self.selected_map_box.pack(side='left', padx=5, pady=5)
+        #self.selected_map_box['state'] = 'readonly'
+        self.selected_map_box.pack(side='left')
         # This tracks the current drawn level
-        # BUG: list index out of range when going past the end...
         self.map_ptr = self.doom2_maps.index("MAP01")
         # print("__init__: map pointer is :  {}".format(self.map_ptr))
 
-        root.title("WADdle Plot - v0.9")
+        self.master.title("WADdle Plot - v0.9")
+        self.master.resizable(width=False, height=False)
+
 
         """if self.game is "DOOM":
             self.map_ptr = self.doom_maps[0] + 1
@@ -113,47 +158,178 @@ class MapViewer(tk.Frame):
         # This could be wrong
         self.screen_x_max = -640 + 10
         self.screen_x_min = 640 - 10
-        self.screen_y_max = -360 + 10
-        self.screen_y_min = 360 - 10
-        # =======================
-        # self.world_to_screen()  <--- plot() calls this
-
+        self.screen_y_max = -480 + 10
+        self.screen_y_min = 480 - 10
         # Set initial value of the combo-box
         self.selected_map_box.current(newindex=self.map_ptr)
-        #print('hi')
         self.screen.tracer(0)
-        #self.plot()
 
+        # color choosing buttons for setting line colors
+        self.solidline_color_btn = tk.Button(self, text="1-Sided line color",
+                                   command=self.setSolid_linecolor)
+        self.solidline_color_btn.pack(side="left")
+        self.solidline_color_btn.configure(background=self.ONE_SIDED_COLOR)
+
+        self.transline_color_btn = tk.Button(self, text="2-Sided line color",
+                                             command=self.setTrans_linecolor)
+        self.transline_color_btn.configure(background=self.TWO_SIDED_COLOR)
+        self.transline_color_btn.pack(side="left")
+        # redraw level button
+        self.redraw_btn = ttk.Button(self, text="redraw", command=self.plot)
+        self.redraw_btn.configure(state='disabled')
+        self.redraw_btn.pack(side="left")
+        """# autplot check button
+        self.autoplot_cb = IntVar()
+        self.autoplot_btn = ttk.Checkbutton(self, text="autoplot (Experimental)", variable=self.autoplot_cb,
+                                            onvalue=1, offvalue=0, state=NORMAL,
+                                            command=self.autoplot)
+        self.autoplot_btn.configure(state='disabled')
+        self.autoplot_btn.pack(side='left', anchor='sw', padx=5, pady=5)"""
+
+    def autoplot(self):
+        """ called by autoplot """
+
+
+        while self.autoplot_cb.get() == 1 and self.canRESUME is not True:
+            self.autoplot_btn.configure(text=['Plotting all levels within loaded wadfile. Click to pause'])
+            self.AUTOPLOT = True
+            self.next_map()
+
+        if self.autoplot_cb.get() == 1 and self.canRESUME is True:
+            #self.autoplot_btn.destroy()
+            self.autoplot_btn.configure(text='If you uncheck me and click anything else in the GUI... Check me after unchecking!')
+
+            self.AUTOPLOT = True
+            self.plot()
+
+        """while self.AUTOPLOT is True:
+            self.next_map()"""
+
+
+    def isAutoPlot(self):
+        """ Are we currently plotting """
+        if self.AUTOPLOT is True:
+            print("AUTOPILOT is True")
+            return True
+        if self.AUTOPLOT is False:
+            print("AUTOPILOT is False")
+            return False
+
+    def setTrans_linecolor(self):
+        """ Called when '2-Sided...' is clicked """
+        color = tkinter.colorchooser.askcolor(title="Set 2-Sided LINE color", initialcolor=self.TWO_SIDED_COLOR)
+        print(color[1])
+        if color[1]:
+            self.TWO_SIDED_COLOR = color[1]
+            #update button color to reflect change
+            self.transline_color_btn.configure(background=self.TWO_SIDED_COLOR)
+            print("solid color set to {}".format(color[1]))
+
+    def setSolid_linecolor(self):
+        """ Called when '1-Sided..' is clicked """
+        color = tkinter.colorchooser.askcolor(title="Set 1-Sided LINE color", initialcolor=self.ONE_SIDED_COLOR)
+        print(color[1])
+        if color[1]:
+            self.ONE_SIDED_COLOR = color[1]
+            self.solidline_color_btn.configure(background=self.ONE_SIDED_COLOR)
+            print("solid color set to {}".format(color[1]))
 
 
     def openFile_dialog(self):
         """Calls the tk.filedialog to open a wadfile..."""
+        # TODO: This function has descended into the abyss...Refactor...everything?
+
+        # I didn't plan for the functionality I am attempting to provide with this button...
+        if self.autoplot_btn:
+            self.autoplot_btn.destroy()
 
         filetypes = (
             ('wadfiles', '*.wad'),
+            ('zipfile archive', '*.zip'),
             ('All files', '*.*')
         )
 
         filename = fd.askopenfilename(
-            title='Open a DOOM wadfile',
+            title='Open a DOOM wadfile or a zipfile that contains wadfiles',
             initialdir='/',
             filetypes=filetypes
         )
 
-        self.loadWad(filename)
-        self.loadLevel(self.doom2_maps[self.doom2_maps.index("MAP01")])
-        self.map_ptr = self.doom2_maps.index(self.level.map)
-        self.plot()
-        # Update combo-box...
-        self.selected_map_box.current(newindex=self.map_ptr)
+        if filename.endswith('.wad') or filename.endswith('.WAD'):
+            # close the wadfile so we're not leaking memory
+            if self._wadfile:
+                self._wadfile.wadfile.close()
+
+            self.loadWad(filename)
+            self.loadLevel(self.doom2_maps[self.doom2_maps.index("MAP01")])
+            self.map_ptr = self.doom2_maps.index(self.level.map)
+
+            # activate 'animate' checkbutton
+            self.anim_check_btn.configure(state="active")
+            # Update combo-box...
+            self.selected_map_box.current(newindex=self.map_ptr)
+            # enable autoplot check btn
+            self.autoplot_cb = IntVar()
+            self.autoplot_btn = ttk.Checkbutton(self,
+                                                text="autoplot - Click me to enter the 'event-horizon'! (WIP)",
+                                                variable=self.autoplot_cb, onvalue=1, offvalue=0,
+                                                command=self.autoplot)
+            self.autoplot_btn.configure(state='disabled')
+            self.autoplot_btn.pack(side='left', anchor='sw', padx=5, pady=5)
+
+            self.plot()
+            self.autoplot_btn.configure(state='enabled')
+            # 'enable' level navigation buttons
+            self.prevmap_btn.configure(foreground="black", relief="raised",
+                                       overrelief="solid", state="active")
+            self.nextmap_btn.configure(foreground="black", relief="raised",
+                                       overrelief="solid", state="active")
+            # enable the level-list selection box
+            self.selected_map_box.configure(state="readonly")
+            # enable redraw gui button
+            self.redraw_btn.configure(state="active")
+
+
+        elif filename.endswith('.zip'):
+            # close the wadfile so we're not leaking memory
+            if self._wadfile:
+                self._wadfile.wadfile.close()
+
+            # setup a ttk.combobox widget for archive-file selection
+            self.archive_loaded_display = tk.StringVar()
+            self.archived_loaded_box = ttk.Combobox(textvariable=self.archive_loaded_display)
+            self.archived_loaded_box.bind('<<ComboboxSelected>>', self.cb_change_archive_wadfile)
+            # load the zipfile
+            self.wad_archive = zipfile.ZipFile(filename)
+            # we only want the .wad files showing up in the combobox, not .txt describing said wadfiles
+            wad_archive_wadfile_names = []
+            for f in self.wad_archive.namelist():
+                if f.endswith('.wad'):
+                    wad_archive_wadfile_names.append(f)
+            # TODO: setup a text widget for viewing the txt files describing the wads
+            self.archived_loaded_box["values"] = wad_archive_wadfile_names
+            self.archived_loaded_box["state"] = "readonly"
+            self.archived_loaded_box.pack(side='left', anchor='sw', padx=5, pady=5)
+            self.archived_loaded_box.current(newindex=0)
+            # close the zipfile
+            self.wad_archive.close()
+
+        else:
+            if not filename:
+                return
+            print("{} is an INVALID wadfile!".format(filename))
+
+    def cb_change_archive_wadfile(self, evt):
+        print('hi from cb change archive fuck')
 
     def progress_begin(self):
             time.sleep(5)
-            self.progress_bar.start()
+            #self.progress_bar.start()
 
             # Checkbutton state func
 
     def isChecked(self):
+        """ Called by the 'animate' checkbutton, on click"""
         if self.cb.get() == 1:
             self.screen.tracer(1)
         if self.cb.get() == 0:
@@ -161,43 +337,111 @@ class MapViewer(tk.Frame):
 
     def cb_change_map(self, evt):
         """Changes to the selected level in the combo box"""
-        print("cb_change_map: Switching to and plotting level {}".format(self.selected_map_box.get()))
-        # showinfo(title="Map", message=msg)
-        self.level = None
+        if self.level:
+            self.level = None
+            self.loadLevel(self.doom2_maps[self.doom2_maps.index(self.selected_map_box.get())])
+            self.map_ptr = self.doom2_maps.index(self.level.map)
+            self.plot()
+            return
+        # Code below is not needed because the level-selection box is set to "disabled" on creation
+        """if not self.level and not self._wadfile:
+            # TODO: raise a popup dialogbox with the following before removing print statement! - 7/13/2021
+            print('Load a wadfile/archive first!')
+            return"""
         self.loadLevel(self.doom2_maps[self.doom2_maps.index(self.selected_map_box.get())])
         self.map_ptr = self.doom2_maps.index(self.level.map)
         self.plot()
 
     def prev_map(self):
-        self.level = None
-        self.loadLevel(self.doom2_maps[self.map_ptr - 1])
-        self.map_ptr = self.doom2_maps.index(self.level.map)
-        self.plot()
-        # Update the combo box to reflect the level change
-        self.selected_map_box.current(newindex=self.map_ptr)
+        """ Called when 'prev map' tk.Button is clicked """
 
-    def next_map(self):
+        # this damnable button
+        self.autoplot_btn.configure(state=['disabled'])
+
         self.level = None
 
-        if self.map_ptr == 31:
-            self.loadLevel(self.doom2_maps[0])
+        # is a wadfile loaded
+        if self._wadfile:
+            self.loadLevel(self.doom2_maps[self.map_ptr - 1])
             self.map_ptr = self.doom2_maps.index(self.level.map)
             self.plot()
-            # Update...
+            # Update the combo box to reflect the level change
+            self.selected_map_box.current(newindex=self.map_ptr)
+
+        self.autoplot_btn.configure(state='active')
+
+    def next_map(self):
+        """ Called when the 'next map' tk.Button is clicked """
+
+        self.level = None
+
+        # is a wadfile loaded?
+        if self._wadfile:
+            # support going from the last map to the first map with a NEXT click...
+            if self.map_ptr == 31:
+                self.loadLevel(self.doom2_maps[0])
+                self.map_ptr = self.doom2_maps.index(self.level.map)
+                self.plot()
+                # Update...
+                self.selected_map_box.current(newindex=self.map_ptr)
+                return
+
+            self.loadLevel(self.doom2_maps[self.map_ptr + 1])
+            self.map_ptr = self.doom2_maps.index(self.level.map)
+            self.plot()
+            # Update the combo box to reflect the change
             self.selected_map_box.current(newindex=self.map_ptr)
             return
-
-        self.loadLevel(self.doom2_maps[self.map_ptr + 1])
-        self.map_ptr = self.doom2_maps.index(self.level.map)
-        self.plot()
-        # Update the combo box to reflect the change
-        self.selected_map_box.current(newindex=self.map_ptr)
 
     def draw_map(self):
         """Draws the currently loaded level"""
         self.plot()
 
-    def getPoints(self, points_file: str) -> list:
+    def widgets_restore(self):
+        """
+        called by the for-loop in self.plot() to restore widget state so we can safely
+        break out of the for-loop. Which is needed to safely stop autoplot.
+        """
+
+        # activate widgets disabled before entering the for-loop in self.plot()
+        self.prevmap_btn.configure(state='active')
+        self.nextmap_btn.configure(state='active')
+        self.selected_map_box.configure(state='active')
+        self.redraw_btn.configure(state='active')
+        # update window title
+        self.master.title("{} from:    {}               [WADdle Plot-v.0.9]".format(self.level.map, self._wadfile.wadfile.name))
+
+    # ==================================================================================================================
+    # TODO: Functions getLines and lines_toFile will be beneficial when I want to implement connecting to
+    #       the 'idgames database' or any website with wadfiles...
+    #       These wadfiles are typically within a zipfile. I don't plan on storing the zipfiles on the
+    #       client's machine(hdd) when accessing the the contained wad(s).
+    #       The data(vertices, lines) needed to plot the maps will be pulled from the wads and stored
+    #       in a textual format. This will conserve ALOT of space if dozens (or even hundreds) of wadfiles
+    #       are pulled into WADdle Plot from the net. Let alone thousands...
+    #
+    #       Eventually, it would be neat to scrap all know wadfile sites and get their wadfiles. A server
+    #       running a SQLite DB would be neat. Client programs(WADdle Plot) could check the WADdle Plot DB
+    #       first, for wadfiles. Then, check known wadfile internet sites. If a pulled wadfile is not in the
+    #       WADdle Plot central DB, we add it to it! Any wadfiles on the user's machine that are not in the
+    #       central db could also be added to it, with the user's consent(of course)...
+    #
+    #       Wadfiles(some) are art! In the interest of preserving this, this is the direction I see
+    #       WADdle Plot heading towards. An assimilation and textual conversion, of the needed data
+    #       to display(mostly, user-created) wadfiles. All in the interest of preserving this
+    #       2D line-drawn art and taking as little space as possible to store it...
+    #
+    # TODO: At the moment, WADdle Plot will plot levels within 'official' ID Games wadfiles. This may cross
+    #       the legal boundary for being acceptable(at least to Bethesda?) and certainly is in a grey area.
+    #       I plan on disallowing this unless official IWADs are detected on a user's machine. The official
+    #       IWADs won't be 'assimilated' into the central WADdle Plot DB...
+    #
+    # NOTE: "Slaughter" style maps have several "enemy-spawner" box areas, outside the map. Frankly, their
+    #        like a blemish on an otherwise perfectly constructed facade.
+    #        Eventually, an algorithm will be devised that removes(or ignores) these stains...
+    # ==================================================================================================================
+
+    def getLines(self, points_file: str) -> list:
         """
         Load a list of points from a FILE that was written
         by  _points_toFile
@@ -226,18 +470,25 @@ class MapViewer(tk.Frame):
 
         return points
 
-    def _points_toFile(self, p_file=False, all_levels=False):
-        """"
-        Write points data to a FILE. This should NOT be called apart
-        from __init__, due to the assumption that the level data has already
-        been assembled by: self.loadlevel()
+    def lines_toFile(self, lines_filename=False, all_levels=False):
+        """
+        Create a file with the lines from the loaded level
 
-        PARAM: points_file = Name of written file
+        PARAM: lines_filename TYPE: string
+        Name of file to create
+
+        PARAM: all_levels TYPE: bool
+        Write the lines of all levels, in the loaded wadfile.
         """
 
+        # TODO: Define a file format for storing points data. Put multiple points on a single line to
+        #       conserve file space!
+
+        # TODO: Add a menu option for loading and saving points data.
+
         # Write a single level
-        if p_file:
-            out_file = open(p_file, 'wb')
+        if lines_filename:
+            out_file = open(lines_filename, 'wb')
 
             xPoints = []
             yPoints = []
@@ -266,8 +517,9 @@ class MapViewer(tk.Frame):
             yPoints = []
 
             print("Writing all level-points to {}".format(all_levels))
-            i= 0
+            i = 0
             while i < len(self.doom2_maps):
+                # TODO: We're not loading a new level so this is writing the SAME (level x len(self.doom2_maps)
                 loaded_level = self.level
                 print("Writing points for {} to {}".format(self.level.map, all_levels))
 
@@ -297,14 +549,15 @@ class MapViewer(tk.Frame):
         """ Loads a level.\n
         param: ExMx (DOOM) or MAPxx(DOOM2)
         """
-
-        self._wadfile.load_level_info(level)
-        self.level = self._wadfile.build_level(level)
+        try:
+            self._wadfile.load_level_info(level)
+            self.level = self._wadfile.build_level(level)
+        except AttributeError as whoops:
+            print("_loadLevel_: is of a {} type".format(self.level))
+            print(whoops)
 
     def world_to_screen(self):
         """ Translate our line end-points to screen-space"""
-        # TODO: Iterate over ...lines[x]["line-segment"] to get
-        #         the max/min of the map
         x = []
         y = []
         screen_range_x = (self.screen_x_max - self.screen_x_min)
@@ -340,17 +593,31 @@ class MapViewer(tk.Frame):
             end_sy = (((cy - self.map_y_min) * screen_range_y) / map_range_y) + self.screen_y_min
             # Now we need to replace the current line-segment with a new instance...
             # We also need -start_sy and -end_sy to FLIP the map right-side UP!
-            start = start_sx, -start_sy
-            end = end_sx, -end_sy
+            start = start_sx, start_sy
+            end = end_sx, end_sy
             p['line-segment'] = planar.LineSegment.from_points((start, end))
 
     def plot(self):
-        """ Plot the level"""
-        self.t_turtle.reset()
+        """ Plot the level """
+
+        # don't reset the screen while resuming
+        if self.canRESUME is not True:
+            self.t_turtle.reset()
+
+        self.t_turtle.speed(0)
         # Start the progress bar
         #self.progress_bar.set_value(30)
         #self.screen.bgcolor(self.BACKGROUND_COLOR)
         #self.screen.delay(1)
+
+        # Level stats
+        if self.vnum:
+            self.vnum.destroy()
+            self.vnum = ttk.Label(text="Lines: {}".format(len(self.level.lines.lines)))
+            self.vnum.pack(side="right", padx=5)
+        if not self.vnum:
+            self.vnum = ttk.Label(text="Lines: {}".format(len(self.level.lines.lines)))
+            self.vnum.pack(side="right", padx=5)
 
         # Check for animate check button - Fix me
         if self.cb == 1:
@@ -358,33 +625,166 @@ class MapViewer(tk.Frame):
         if self.cb == 0:
             self.screen.tracer(0)
         self.world_to_screen()
-        #self.screen.tracer(0)
+        # Determines if we are plotting in a highly-detailed area of the level
+        x_point_history = list()
 
-        for p in self.level.lines.lines:
-            if -1 in p.values():
-                self.t_turtle.pencolor(self.ONE_SIDED_COLOR)
-            else:
-                self.t_turtle.pencolor(self.TWO_SIDED_COLOR)
-            self.t_turtle.penup()
-            self.t_turtle.goto(p['line-segment'].start)
-            self.t_turtle.pendown()
-            self.t_turtle.goto(p['line-segment'].end)
-            # self.progress_bar.stop()
+        def zoom_in():
+            #ZOOM!
+            self.screen.tracer(0)
+            self.screen.delay(0)
+            self.t_turtle.hideturtle()
+            #gotta zoom back out too....
+            pass
+
+        lines_drawn = 0
+        doZOOM = False
+
+        self.master.title("Plotting {}...".format(self.level.map))
+
+        # disable level nav buttons while plotting so we don't corrupt tkinter internal state...
+        self.prevmap_btn.configure(state="disabled")
+        self.nextmap_btn.configure(state="disabled")
+        # disable level-selection box
+        self.selected_map_box.configure(state="disabled")
+
+        # Clicking this button during a map plot is BAD...
+        self.redraw_btn.configure(state="disabled")
+
+        def plot_resume():
+            pass
+
+        # We resumed a paused plot (unchecked autoplot button)
+        if self.canRESUME is True:
+            for p in self.level.lines.lines:
+                if -1 in p.values():
+                    self.t_turtle.pencolor(self.ONE_SIDED_COLOR)
+                else:
+                    self.t_turtle.pencolor(self.TWO_SIDED_COLOR)
+                if p['number'] > self.LASTLINE:
+                    self.t_turtle.penup()
+                    self.t_turtle.goto(p['line-segment'].start)
+                    self.t_turtle.pendown()
+                    self.t_turtle.goto(p['line-segment'].end)
+                    self.canRESUME = False
+                    self.widgets_restore()
+                    # Update Drawing Line: xxx in GUI on top of window...
+                    if self.onLine:
+                        self.onLine.destroy()
+                        self.onLine = ttk.Label(text="Drawing Line: {}".format(self.level.lines.lines.index(p)+1))
+                        self.onLine.configure(background="green", foreground="black", relief="solid")
+                        self.onLine.pack(side="right", padx=5)
+                        # So calling this update method fixed one BIG problem...
+                        # Apparently the onLine widget was blocking the canvas from smoothly updating...
+                        self.onLine.update()
+
+                    #self.screen.update()
+
+                    if self.autoplot_cb.get() == 0 and self.AUTOPLOT is True:
+                        self.AUTOPLOT = False
+                        self.widgets_restore()
+                        self.autoplot_btn.configure(text="autoplot (PAUSED - Click to RESUME")
+                        self.LASTLINE = p
+                        self.canRESUME = True
+                        return
+            self.screen.update()
+            return
+
+        if not self.canRESUME:
+            print('calling orig for-loop from plot()')
+            for p in self.level.lines.lines:
+                # If we're plotting in a highly detailed, small area,
+                # then let's zoom in so we can get a closer look.
+                if -1 in p.values():
+                    self.t_turtle.pencolor(self.ONE_SIDED_COLOR)
+                else:
+                    self.t_turtle.pencolor(self.TWO_SIDED_COLOR)
+                self.t_turtle.penup()
+                self.t_turtle.goto(p['line-segment'].start)
+                self.t_turtle.pendown()
+                self.t_turtle.goto(p['line-segment'].end)
+                lines_drawn += 1
+
+                # Line label shown in GUI that we are drawing on...
+                if self.onLine:
+                    self.onLine.destroy()
+                    self.onLine = ttk.Label(text="Drawing Line: {} ".format(self.level.lines.lines.index(p)+1))
+                    self.onLine.configure(background="green", foreground="black", relief="solid")
+                    self.onLine.pack(side="right", padx=5)
+                if not self.onLine:
+                    self.onLine = ttk.Label(text="Drawing Line: {} ".format(self.level.lines.lines.index(p)+1))
+                    self.onLine.configure(background="green", foreground="black", relief="solid")
+                    self.onLine.pack(side="right", padx=5)
+                # Needed for updates when click the next buttons. Removes overlap bug but adds a new one....
+
+                # TODO: Add a checkbutton to turn 'updates' on or off...
+                # NOTE: After the mess associated with the creation of 'autoplotting' maybe the above is not
+                #       such a good idea!
+
+                self.screen.update()
+
+                # check if autoplot btn is clicked
+                if self.autoplot_cb.get() == 0 and self.AUTOPLOT is True:
+                    self.AUTOPLOT = False
+                    self.widgets_restore()
+                    self.autoplot_btn.configure(text="autoplot (PAUSED - Click to RESUME")
+                    # Save the last line so we can resume plotting, if requested
+                    self.LASTLINE = p['number']
+                    print('saved last line of {}'.format(self.LASTLINE))
+                    self.canRESUME = True
+                    self.onLine.configure(text="Plot halted @ line: {}".format(self.level.lines.lines.index(p)))
+                    return
+
+
+            if lines_drawn > 4:
+                x_point_history.append(p['line-segment'].start.x)
+                # Let's see if we are in a highly-detailed area of the level...
+                if not isclose(x_point_history[-1], p['line-segment'].start.x, rel_tol=0.05):
+                    if doZOOM:
+                        zoom_in()
+        # plot complete, re-enabled level nav buttons
+        self.prevmap_btn.configure(state="active")
+        self.nextmap_btn.configure(state="active")
+        # re-enable level-selection box
+        self.selected_map_box.configure(state="readonly")
+        # re-enable redraw
+        self.redraw_btn.configure(state='active')
+
+        self.onLine.destroy()
+        self.onLine = ttk.Label(text="Finished plotting {}".format(self.level.map))
+        self.onLine.configure(background="red", foreground="black", relief="groove")
+        self.onLine.pack(side="right", padx=5)
         #Set title of main window
-        root.title("{} Plot [WADdle Plot - v0.9]".format(self.level.map))
+        self.master.title("{} from:  {}        [WADdle Plot - v0.9]".format(self.level.map, self._wadfile.wadfile.name))
 
+        # Check if we should stop autoplotting - waits for level to complete
+        # TODO: remove?
+        """if self.autoplot_cb.get() == 0:
+            self.plotall = 0"""
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    plotter = MapViewer(root)
-    plotter.pack(side="top", fill="both",expand=True)
+    # root = tk.Tk() update
+
+    # plotter = MapViewer(root) update
+    # plotter.pack(side="top", fill="both", expand=True)update
     #root.resizable(width=False, height=False)
 
     # Menu won't show up?!
     #menubar = Menu(plotter)
     #filemenu = Menu(root, tearoff=0)
     #filemenu.add_command(label="Open")
-    root.config(menu=plotter.menubar)
 
-    root.mainloop()
+    # root.config(menu=plotter.menubar) update
 
+    # root.mainloop() update
+    # close opened wadfile(s)
+
+    MapViewer().mainloop()
+
+    if MapViewer()._wadfile:
+        MapViewer()._wadfile.close()
+
+    """if plotter._wadfile:
+        print("{} is: {}".format(plotter._wadfile.wadfile, "open"))
+        w_file = plotter._wadfile.wadfile.name
+        plotter._wadfile.wadfile.close()
+        print("Closed {}".format(w_file))"""

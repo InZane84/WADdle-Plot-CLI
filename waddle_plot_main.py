@@ -62,7 +62,8 @@ class MapViewer(tk.Frame):
         self.autoplot_btn = None
 
         # Canvas
-        self.canvas = tk.Canvas(width=1280, height=960)
+        #self.canvas = tk.Canvas(width=1280, height=960)
+        self.canvas = tk.Canvas(width=1024, height=768)
         self.canvas.pack(side="bottom")
         #self.canvas.configure(scrollregion=(-640, -800, 640, 800))
 
@@ -134,7 +135,7 @@ class MapViewer(tk.Frame):
                            "MAP11", "MAP12", "MAP13", "MAP14", "MAP15", "MAP16", "MAP17", "MAP18", "MAP19", "MAP20",
                            "MAP21", "MAP22", "MAP23", "MAP24", "MAP25", "MAP26", "MAP27", "MAP28", "MAP29", "MAP30",
                            "MAP31", "MAP32"]
-        # Map selection combo box
+        # Add the map list to the combo box
         self.selected_map_box['values'] = self.doom2_maps
         #self.selected_map_box['state'] = 'readonly'
         self.selected_map_box.pack(side='left')
@@ -157,10 +158,10 @@ class MapViewer(tk.Frame):
         self.map_y_max = None
         self.map_y_min = None
         # This could be wrong
-        self.screen_x_max = -640 + 10
-        self.screen_x_min = 640 - 10
-        self.screen_y_max = -480 + 10
-        self.screen_y_min = 480 - 10
+        self.screen_x_max = -510 + 10
+        self.screen_x_min = 510 - 10
+        self.screen_y_max = -375 + 10
+        self.screen_y_min = 375 - 10
         # Set initial value of the combo-box
         self.selected_map_box.current(newindex=self.map_ptr)
         self.screen.tracer(0)
@@ -252,7 +253,7 @@ class MapViewer(tk.Frame):
 
         filename = fd.askopenfilename(
             title='Open a DOOM wadfile or a zipfile that contains wadfiles',
-            initialdir='/',
+            initialdir='~/',
             filetypes=filetypes
         )
 
@@ -263,6 +264,8 @@ class MapViewer(tk.Frame):
 
             self.loadWad(filename)
             self.loadLevel(self.doom2_maps[self.doom2_maps.index("MAP01")])
+            print(f"Passed to loadlevel: {self.doom2_maps[self.doom2_maps.index('MAP02')]}")
+            print(f"Value of level: {type(self.level)}")
             self.map_ptr = self.doom2_maps.index(self.level.map)
 
             # activate 'animate' checkbutton
@@ -364,7 +367,9 @@ class MapViewer(tk.Frame):
         # is a wadfile loaded
         if self._wadfile:
             self.loadLevel(self.doom2_maps[self.map_ptr - 1])
+            # TODO: This is part of the E1M1/MAP01 problem...
             self.map_ptr = self.doom2_maps.index(self.level.map)
+            # =================================================
             self.plot()
             # Update the combo box to reflect the level change
             self.selected_map_box.current(newindex=self.map_ptr)
@@ -388,6 +393,7 @@ class MapViewer(tk.Frame):
                 return
 
             self.loadLevel(self.doom2_maps[self.map_ptr + 1])
+            # TODO: This is part of the E1M1/MAP01 problem:
             self.map_ptr = self.doom2_maps.index(self.level.map)
             self.plot()
             # Update the combo box to reflect the change
@@ -550,12 +556,11 @@ class MapViewer(tk.Frame):
         """ Loads a level.\n
         param: ExMx (DOOM) or MAPxx(DOOM2)
         """
-        try:
-            self._wadfile.load_level_info(level)
-            self.level = self._wadfile.build_level(level)
-        except AttributeError as whoops:
-            print("_loadLevel_: is of a {} type".format(self.level))
-            print(whoops)
+        print("loadLevel: In try block...")
+        self._wadfile.load_level_info(level)
+        print(f"Loading level: {level}")
+        self.level = self._wadfile.build_level(level)
+        print(f"loadLevel: {type(self.level)}")
 
     def world_to_screen(self):
         """ Translate our line end-points to screen-space"""

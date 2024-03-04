@@ -9,7 +9,7 @@ import turtle
 import sys
 import argparse
 
-#Python 3 madness...
+#  Python 3 madness...
 from planar.line import LineSegment
 from turtle import *
 
@@ -17,11 +17,15 @@ from turtle import *
 __author__ = 'InZane84'
 __email__ = 'InZaneGamer84@protonmail.com'
 
+
 class LumpInfo:
-	def __init__(self ,offset, size):
+	def __init__(self, offset, size):
 		"""Entry in the WAD's directory. Table starts at
+		:rtype: A LumpInfo instance
+		:param offset: integer
+		:param size: integer
 		"""
-		self.offset = offset # Start of the Lump Info Entries (Directory)
+		self.offset = offset  # Start of the Lump Info Entries (Directory)
 		self.size = size
 
 

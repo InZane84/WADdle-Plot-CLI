@@ -1,5 +1,5 @@
 # WADdle Plot
-**STATUS:** *Currently only loads DOOM2 maps without ACS lumps.*
+**STATUS:** *[b]DEPRECATED!!![/b]*
 
 ## A DOOM wadfile parser/map plotter
 

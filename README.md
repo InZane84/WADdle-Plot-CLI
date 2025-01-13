@@ -1,5 +1,5 @@
 # WADdle Plot
-**STATUS:** *[b]DEPRECATED!!![/b]*
+**STATUS:** *This specific version is no longer relevant...*
 
 ## A DOOM wadfile parser/map plotter
 
